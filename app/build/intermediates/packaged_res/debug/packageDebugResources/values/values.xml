@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <string name="app_name">SignalingFoodApp</string>
+    <string name="gcm_defaultSenderId" translatable="false">634909587968</string>
+    <string name="google_api_key" translatable="false">AIzaSyDxupU8otK11NDXYRCiW_gdzGqN1qOBBL4</string>
+    <string name="google_app_id" translatable="false">1:634909587968:android:d7f5814c0c557736db36e5</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyDxupU8otK11NDXYRCiW_gdzGqN1qOBBL4</string>
+    <string name="google_storage_bucket" translatable="false">foodsignalingapp.firebasestorage.app</string>
+    <string name="project_id" translatable="false">foodsignalingapp</string>
+    <style name="Base.Theme.SignalingFoodApp" parent="Theme.Material3.DayNight.NoActionBar">
+        
+        
+    </style>
+    <style name="Theme.SignalingFoodApp" parent="Base.Theme.SignalingFoodApp"/>
+</resources>

@@ -1,0 +1,9 @@
+com.abdelrahmanhazem.app-pngs-0 C:\Users\Abdelrahman\StudioProjects\SignalingFoodApp\app\build\generated\res\pngs\debug
+com.abdelrahmanhazem.app-res-1 C:\Users\Abdelrahman\StudioProjects\SignalingFoodApp\app\build\generated\res\processDebugGoogleServices
+com.abdelrahmanhazem.app-updated_navigation_xml-2 C:\Users\Abdelrahman\StudioProjects\SignalingFoodApp\app\build\generated\updated_navigation_xml\debug
+com.abdelrahmanhazem.app-packageDebugResources-3 C:\Users\Abdelrahman\StudioProjects\SignalingFoodApp\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.abdelrahmanhazem.app-packageDebugResources-4 C:\Users\Abdelrahman\StudioProjects\SignalingFoodApp\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.abdelrahmanhazem.app-debug-5 C:\Users\Abdelrahman\StudioProjects\SignalingFoodApp\app\build\intermediates\merged_res\debug\mergeDebugResources
+com.abdelrahmanhazem.app-debug-6 C:\Users\Abdelrahman\StudioProjects\SignalingFoodApp\app\src\debug\res
+com.abdelrahmanhazem.app-main-7 C:\Users\Abdelrahman\StudioProjects\SignalingFoodApp\app\src\main\res
+gradleHome-0 C:\Users\Abdelrahman\.gradle
