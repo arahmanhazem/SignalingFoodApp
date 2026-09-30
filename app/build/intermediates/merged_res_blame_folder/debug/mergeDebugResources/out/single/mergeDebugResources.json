@@ -44,8 +44,8 @@
         "source": "C:\\Users\\Abdelrahman\\.gradle\\daemon\\9.6.0\\com.abdelrahmanhazem.app-main-49:\\layout\\activity_login.xml"
     },
     {
-        "merged": "com.abdelrahmanhazem.app-debug-47:/layout_activity_profile.xml.flat",
-        "source": "com.abdelrahmanhazem.app-main-49:/layout/activity_profile.xml"
+        "merged": "C:\\Users\\Abdelrahman\\.gradle\\daemon\\9.6.0\\com.abdelrahmanhazem.app-debug-47:\\layout_activity_profile.xml.flat",
+        "source": "C:\\Users\\Abdelrahman\\.gradle\\daemon\\9.6.0\\com.abdelrahmanhazem.app-main-49:\\layout\\activity_profile.xml"
     },
     {
         "merged": "C:\\Users\\Abdelrahman\\.gradle\\daemon\\9.6.0\\com.abdelrahmanhazem.app-debug-47:\\layout_activity_main.xml.flat",
@@ -70,6 +70,10 @@
     {
         "merged": "C:\\Users\\Abdelrahman\\.gradle\\daemon\\9.6.0\\com.abdelrahmanhazem.app-debug-47:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
         "source": "C:\\Users\\Abdelrahman\\.gradle\\daemon\\9.6.0\\com.abdelrahmanhazem.app-main-49:\\mipmap-anydpi-v26\\ic_launcher.xml"
+    },
+    {
+        "merged": "C:\\Users\\Abdelrahman\\.gradle\\daemon\\9.6.0\\com.abdelrahmanhazem.app-debug-47:\\layout_activity_edit_profile.xml.flat",
+        "source": "C:\\Users\\Abdelrahman\\.gradle\\daemon\\9.6.0\\com.abdelrahmanhazem.app-main-49:\\layout\\activity_edit_profile.xml"
     },
     {
         "merged": "C:\\Users\\Abdelrahman\\.gradle\\daemon\\9.6.0\\com.abdelrahmanhazem.app-debug-47:\\xml_data_extraction_rules.xml.flat",

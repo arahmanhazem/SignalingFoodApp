@@ -14,6 +14,7 @@ id editProfileLayout
 id etAge
 id etEditAge
 id etEditName
+id etEditPassword
 id etEmail
 id etLoginEmail
 id etLoginPassword

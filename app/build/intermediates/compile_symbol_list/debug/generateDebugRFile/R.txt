@@ -13,6 +13,7 @@ int id editProfileLayout 0x0
 int id etAge 0x0
 int id etEditAge 0x0
 int id etEditName 0x0
+int id etEditPassword 0x0
 int id etEmail 0x0
 int id etLoginEmail 0x0
 int id etLoginPassword 0x0

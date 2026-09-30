@@ -22,11 +22,12 @@ class EditProfileActivity : AppCompatActivity() {
 
         val nameInput = findViewById<EditText>(R.id.etEditName)
         val ageInput = findViewById<EditText>(R.id.etEditAge)
+        val passwordInput = findViewById<EditText>(R.id.etEditPassword)
         val saveButton = findViewById<Button>(R.id.btnSaveProfile)
 
-        val userId = auth.currentUser?.uid
+        val currentUser = auth.currentUser
 
-        if (userId == null) {
+        if (currentUser == null) {
             Toast.makeText(
                 this,
                 "No user is currently logged in.",
@@ -35,6 +36,8 @@ class EditProfileActivity : AppCompatActivity() {
             finish()
             return
         }
+
+        val userId = currentUser.uid
 
         // Load existing profile data
         database.reference
@@ -60,16 +63,18 @@ class EditProfileActivity : AppCompatActivity() {
 
             val newName = nameInput.text.toString().trim()
             val newAge = ageInput.text.toString().trim()
+            val newPassword = passwordInput.text.toString()
 
             if (newName.isEmpty() || newAge.isEmpty()) {
                 Toast.makeText(
                     this,
-                    "Please fill in all fields",
+                    "Please fill in your name and age",
                     Toast.LENGTH_SHORT
                 ).show()
                 return@setOnClickListener
             }
 
+            // Update Name and Age in Realtime Database
             val updates = mapOf(
                 "name" to newName,
                 "age" to newAge
@@ -81,13 +86,40 @@ class EditProfileActivity : AppCompatActivity() {
                 .updateChildren(updates)
                 .addOnSuccessListener {
 
-                    Toast.makeText(
-                        this,
-                        "Profile updated successfully!",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    // If password field is empty, keep the current password
+                    if (newPassword.isEmpty()) {
 
-                    finish()
+                        Toast.makeText(
+                            this,
+                            "Profile updated successfully!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        finish()
+
+                    } else {
+
+                        // Update password in Firebase Authentication
+                        currentUser.updatePassword(newPassword)
+                            .addOnSuccessListener {
+
+                                Toast.makeText(
+                                    this,
+                                    "Profile and password updated successfully!",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+
+                                finish()
+                            }
+                            .addOnFailureListener { exception ->
+
+                                Toast.makeText(
+                                    this,
+                                    "Profile updated, but password could not be changed: ${exception.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                    }
                 }
                 .addOnFailureListener {
 

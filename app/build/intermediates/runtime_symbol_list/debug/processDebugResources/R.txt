@@ -3292,6 +3292,7 @@ int id enterAlwaysCollapsed 0x7f0800b9
 int id etAge 0x7f0801fd
 int id etEditAge 0x7f08020c
 int id etEditName 0x7f08020d
+int id etEditPassword 0x7f080214
 int id etEmail 0x7f0801fe
 int id etLoginEmail 0x7f080203
 int id etLoginPassword 0x7f080204
