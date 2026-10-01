@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "375676676773",
-    "project_id": "signaling-app-564d5",
-    "storage_bucket": "signaling-app-564d5.firebasestorage.app"
+    "project_number": "634909587968",
+    "project_id": "foodsignalingapp",
+    "storage_bucket": "foodsignalingapp.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:375676676773:android:fabbb208d610dbc5c67b4c",
+        "mobilesdk_app_id": "1:634909587968:android:d7f5814c0c557736db36e5",
         "android_client_info": {
-          "package_name": "com.abdelrahmanhazem.signaling_app"
+          "package_name": "com.abdelrahmanhazem"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC-jCM-qacrqMZNU8QOnLvHNb6pdgaOoWo"
+          "current_key": "AIzaSyDxupU8otK11NDXYRCiW_gdzGqN1qOBBL4"
         }
       ],
       "services": {
