@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "375676676773",
+    "project_id": "signaling-app-564d5",
+    "storage_bucket": "signaling-app-564d5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:375676676773:android:fabbb208d610dbc5c67b4c",
+        "android_client_info": {
+          "package_name": "com.abdelrahmanhazem.signaling_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-jCM-qacrqMZNU8QOnLvHNb6pdgaOoWo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
