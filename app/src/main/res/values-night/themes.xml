@@ -7,6 +7,8 @@
         <item name="colorPrimaryContainer">@color/brand_soft</item>
         <item name="colorOnPrimaryContainer">@color/brand_dark</item>
         <item name="colorSecondary">@color/brand</item>
+        <item name="colorSecondaryContainer">@color/brand_soft</item>
+        <item name="colorOnSecondaryContainer">@color/brand_dark</item>
         <item name="colorSurface">@color/background</item>
         <item name="colorOnSurface">@color/text_primary</item>
         <item name="colorError">@color/error</item>
@@ -71,6 +73,7 @@
 
     <!-- Text styles used across screens -->
     <style name="Text" />
+
     <style name="Text.Title">
         <item name="android:textSize">28sp</item>
         <item name="android:textStyle">bold</item>
