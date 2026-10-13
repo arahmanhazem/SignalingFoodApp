@@ -2,14 +2,24 @@ package com.abdelrahmanhazem
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Patterns
 import android.widget.Button
-import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.database.FirebaseDatabase
 
+/**
+ * Sign Up screen, used by both paths.
+ * The role ("Buyer" or "Seller") comes from the Welcome screen and is saved
+ * with the account under users/<uid>/identity.
+ */
 class SignupActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
@@ -19,101 +29,113 @@ class SignupActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_signup)
 
-        // Firebase
         auth = FirebaseAuth.getInstance()
         database = FirebaseDatabase.getInstance()
 
-        // Get the identity selected on the previous screen
+        // Which path did the user choose on the Welcome screen?
         val identity = intent.getStringExtra("identity") ?: "Buyer"
 
-        // Connect XML fields to Kotlin
-        val nameInput = findViewById<EditText>(R.id.etName)
-        val emailInput = findViewById<EditText>(R.id.etEmail)
-        val passwordInput = findViewById<EditText>(R.id.etPassword)
-        val ageInput = findViewById<EditText>(R.id.etAge)
-        val signUpButton = findViewById<Button>(R.id.btnSignUp)
-        val loginText = findViewById<TextView>(R.id.tvLogin)
+        // Show the role tag at the top
+        findViewById<TextView>(R.id.tvRoleBadge).text =
+            if (identity == "Seller") "SELLER ACCOUNT" else "BUYER ACCOUNT"
 
-        // Go to Login screen
-        loginText.setOnClickListener {
+        // Input boxes (the layouts show the error messages)
+        val tilName = findViewById<TextInputLayout>(R.id.tilName)
+        val tilEmail = findViewById<TextInputLayout>(R.id.tilEmail)
+        val tilAge = findViewById<TextInputLayout>(R.id.tilAge)
+        val tilPassword = findViewById<TextInputLayout>(R.id.tilPassword)
+        val etName = findViewById<TextInputEditText>(R.id.etName)
+        val etEmail = findViewById<TextInputEditText>(R.id.etEmail)
+        val etAge = findViewById<TextInputEditText>(R.id.etAge)
+        val etPassword = findViewById<TextInputEditText>(R.id.etPassword)
+        val signUpButton = findViewById<Button>(R.id.btnSignUp)
+
+        // Disables the button and changes its text while Firebase is working
+        fun setLoading(loading: Boolean) {
+            signUpButton.isEnabled = !loading
+            signUpButton.text = if (loading) "Creating account…" else "Create account"
+        }
+
+        // Back arrow
+        findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
+
+        // "Log in" link: open the Log In screen for the same path
+        findViewById<TextView>(R.id.tvLogin).setOnClickListener {
             val intent = Intent(this, LoginActivity::class.java)
+            intent.putExtra("identity", identity)
             startActivity(intent)
         }
 
-        // Sign Up
         signUpButton.setOnClickListener {
+            val name = etName.text?.toString()?.trim() ?: ""
+            val email = etEmail.text?.toString()?.trim() ?: ""
+            val age = etAge.text?.toString()?.trim() ?: ""
+            val password = etPassword.text?.toString() ?: ""
 
-            val name = nameInput.text.toString().trim()
-            val email = emailInput.text.toString().trim()
-            val password = passwordInput.text.toString()
-            val age = ageInput.text.toString().trim()
+            // Clear old errors
+            tilName.error = null
+            tilEmail.error = null
+            tilAge.error = null
+            tilPassword.error = null
 
-            if (name.isEmpty() || email.isEmpty() || password.isEmpty() || age.isEmpty()) {
-                Toast.makeText(
-                    this,
-                    "Please fill in all fields",
-                    Toast.LENGTH_SHORT
-                ).show()
+            // --- Validation: show the error under the box that is wrong ---
+            if (name.isEmpty()) {
+                tilName.error = "Please enter your name"
+                return@setOnClickListener
+            }
+            if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                tilEmail.error = "Please enter a valid email"
+                return@setOnClickListener
+            }
+            val ageNumber = age.toIntOrNull()
+            if (ageNumber == null || ageNumber !in 1..120) {
+                tilAge.error = "Please enter a valid age"
+                return@setOnClickListener
+            }
+            if (password.length < 6) {
+                tilPassword.error = "Use at least 6 characters"
                 return@setOnClickListener
             }
 
+            setLoading(true)
+
+            // 1) Create the account in Firebase Authentication
             auth.createUserWithEmailAndPassword(email, password)
-                .addOnCompleteListener(this) { task ->
+                .addOnSuccessListener { result ->
+                    val userId = result.user!!.uid
 
-                    if (task.isSuccessful) {
+                    // 2) Save the profile in Realtime Database under users/<uid>
+                    val user = mapOf(
+                        "name" to name,
+                        "email" to email,
+                        "age" to age,
+                        "identity" to identity
+                    )
 
-                        val userId = auth.currentUser!!.uid
+                    database.reference.child("users").child(userId).setValue(user)
+                        .addOnSuccessListener {
+                            Toast.makeText(this, "Welcome, $name!", Toast.LENGTH_SHORT).show()
 
-                        val user = mapOf(
-                            "name" to name,
-                            "email" to email,
-                            "age" to age,
-                            "identity" to identity
-                        )
-
-                        database.reference
-                            .child("users")
-                            .child(userId)
-                            .setValue(user)
-                            .addOnCompleteListener { databaseTask ->
-
-                                if (databaseTask.isSuccessful) {
-
-                                    Toast.makeText(
-                                        this,
-                                        "Account created successfully!",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-
-                                    // User is already logged in by Firebase
-                                    // Send them directly to Home
-                                    val intent = Intent(
-                                        this,
-                                        HomeActivity::class.java
-                                    )
-
-                                    startActivity(intent)
-
-                                    // Prevent returning to Sign Up with the Back button
-                                    finish()
-
-                                } else {
-
-                                    Toast.makeText(
-                                        this,
-                                        "Account created, but profile could not be saved.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            }
-
-                    } else {
-
-                        Toast.makeText(
-                            this,
-                            "Registration failed: ${task.exception?.message}",
-                            Toast.LENGTH_LONG
-                        ).show()
+                            // Open the home screen and clear Welcome/Sign Up from the back stack
+                            // (later: buyers will go to their own Buyer Home screen)
+                            val home = Intent(this, HomeActivity::class.java)
+                            home.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            startActivity(home)
+                        }
+                        .addOnFailureListener { e ->
+                            setLoading(false)
+                            Toast.makeText(this, "Could not save profile: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                }
+                .addOnFailureListener { e ->
+                    setLoading(false)
+                    when (e) {
+                        is FirebaseAuthUserCollisionException ->
+                            tilEmail.error = "This email is already registered"
+                        is FirebaseAuthWeakPasswordException ->
+                            tilPassword.error = "This password is too weak"
+                        else ->
+                            Toast.makeText(this, "Sign up failed: ${e.message}", Toast.LENGTH_LONG).show()
                     }
                 }
         }
