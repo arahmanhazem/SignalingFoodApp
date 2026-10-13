@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- App color palette: one strong brand color + neutral grays -->
 <resources>
+    <!-- Brand -->
+    <color name="brand">#FF5A1F</color>
+    <color name="brand_dark">#E2470F</color>
+    <color name="brand_soft">#FFF1EB</color>
+
+    <!-- Text -->
+    <color name="text_primary">#1A1A1A</color>
+    <color name="text_secondary">#6E6E73</color>
+    <color name="text_hint">#A1A1A6</color>
+
+    <!-- Backgrounds & lines -->
+    <color name="background">#FFFFFF</color>
+    <color name="surface">#F5F5F7</color>
+    <color name="divider">#E9E9EC</color>
+
+    <color name="error">#D93025</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
