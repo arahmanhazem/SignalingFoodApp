@@ -1,0 +1,7 @@
+# Copy to aws.properties locally. Never commit real credentials.
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+# Leave empty for IAM user credentials; required for temporary credentials.
+AWS_SESSION_TOKEN=
+AWS_REGION=us-east-1
+AWS_BUCKET=
