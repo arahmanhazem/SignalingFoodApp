@@ -1,17 +1,64 @@
 package com.abdelrahmanhazem
 
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
-import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.abdelrahmanhazem.seller.ProfilePhotos
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.imageview.ShapeableImageView
+import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 class EditProfileActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var database: FirebaseDatabase
+    private lateinit var photoView: ShapeableImageView
+    private lateinit var photoStatus: TextView
+
+    private val photos = ProfilePhotos("buyer-profiles")
+    private var selectedBytes: ByteArray? = null
+    private var existingPhotoUrl: String = ""
+    private var pendingPhotoUrl: String? = null
+    private var busy = false
+
+    private val pickImage = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri == null || busy) return@registerForActivityResult
+        busy = true
+        photoStatus.visibility = View.GONE
+        lifecycleScope.launch {
+            try {
+                val bytes = withContext(Dispatchers.IO) {
+                    photos.prepare(applicationContext, uri)
+                }
+                selectedBytes = bytes
+                pendingPhotoUrl = null
+                photoView.setImageBitmap(
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                )
+            } catch (e: Exception) {
+                photoStatus.visibility = View.VISIBLE
+                photoStatus.text = e.localizedMessage ?: "Could not open this photo."
+            } finally {
+                busy = false
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -20,115 +67,108 @@ class EditProfileActivity : AppCompatActivity() {
         auth = FirebaseAuth.getInstance()
         database = FirebaseDatabase.getInstance()
 
-        val nameInput = findViewById<EditText>(R.id.etEditName)
-        val ageInput = findViewById<EditText>(R.id.etEditAge)
-        val passwordInput = findViewById<EditText>(R.id.etEditPassword)
+        photoView = findViewById(R.id.ivEditProfilePhoto)
+        photoStatus = findViewById(R.id.tvEditPhotoStatus)
+        photoStatus.visibility = View.GONE
+        val nameInput = findViewById<TextInputEditText>(R.id.etEditName)
+        val ageInput = findViewById<TextInputEditText>(R.id.etEditAge)
+        val passwordInput = findViewById<TextInputEditText>(R.id.etEditPassword)
+        val changePhotoButton = findViewById<MaterialButton>(R.id.btnChangePhoto)
         val saveButton = findViewById<Button>(R.id.btnSaveProfile)
 
-        val currentUser = auth.currentUser
+        findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
 
+        val currentUser = auth.currentUser
         if (currentUser == null) {
-            Toast.makeText(
-                this,
-                "No user is currently logged in.",
-                Toast.LENGTH_LONG
-            ).show()
             finish()
             return
         }
 
         val userId = currentUser.uid
 
-        // Load existing profile data
-        database.reference
-            .child("users")
-            .child(userId)
-            .get()
+        database.reference.child("users").child(userId).get()
             .addOnSuccessListener { snapshot ->
-
-                if (snapshot.exists()) {
-
-                    nameInput.setText(
-                        snapshot.child("name").value?.toString() ?: ""
-                    )
-
-                    ageInput.setText(
-                        snapshot.child("age").value?.toString() ?: ""
-                    )
+                if (!snapshot.exists()) return@addOnSuccessListener
+                nameInput.setText(snapshot.child("name").value?.toString() ?: "")
+                ageInput.setText(snapshot.child("age").value?.toString() ?: "")
+                existingPhotoUrl = snapshot.child("photoUrl").value?.toString().orEmpty()
+                if (existingPhotoUrl.isNotBlank()) {
+                    lifecycleScope.launch {
+                        try {
+                            val bitmap = withContext(Dispatchers.IO) {
+                                photos.download(userId, existingPhotoUrl)
+                            }
+                            photoView.setImageBitmap(bitmap)
+                        } catch (_: Exception) {
+                            // Keep placeholder
+                        }
+                    }
                 }
             }
 
-        // Save changes
-        saveButton.setOnClickListener {
+        changePhotoButton.setOnClickListener {
+            pickImage.launch("image/*")
+        }
 
-            val newName = nameInput.text.toString().trim()
-            val newAge = ageInput.text.toString().trim()
-            val newPassword = passwordInput.text.toString()
+        saveButton.setOnClickListener {
+            if (busy) return@setOnClickListener
+
+            val newName = nameInput.text?.toString()?.trim().orEmpty()
+            val newAge = ageInput.text?.toString()?.trim().orEmpty()
+            val newPassword = passwordInput.text?.toString().orEmpty()
 
             if (newName.isEmpty() || newAge.isEmpty()) {
-                Toast.makeText(
-                    this,
-                    "Please fill in your name and age",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(this, "Please fill in your name and age", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            // Update Name and Age in Realtime Database
-            val updates = mapOf(
-                "name" to newName,
-                "age" to newAge
-            )
+            busy = true
+            saveButton.isEnabled = false
+            photoStatus.visibility = View.GONE
+            lifecycleScope.launch {
+                try {
+                    val updates = mutableMapOf<String, Any>(
+                        "name" to newName,
+                        "age" to newAge
+                    )
 
-            database.reference
-                .child("users")
-                .child(userId)
-                .updateChildren(updates)
-                .addOnSuccessListener {
-
-                    // If password field is empty, keep the current password
-                    if (newPassword.isEmpty()) {
-
-                        Toast.makeText(
-                            this,
-                            "Profile updated successfully!",
-                            Toast.LENGTH_SHORT
-                        ).show()
-
-                        finish()
-
-                    } else {
-
-                        // Update password in Firebase Authentication
-                        currentUser.updatePassword(newPassword)
-                            .addOnSuccessListener {
-
-                                Toast.makeText(
-                                    this,
-                                    "Profile and password updated successfully!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-
-                                finish()
+                    val bytes = selectedBytes
+                    if (bytes != null) {
+                        if (pendingPhotoUrl == null) {
+                            pendingPhotoUrl = withContext(Dispatchers.IO) {
+                                photos.upload(userId, bytes)
                             }
-                            .addOnFailureListener { exception ->
-
-                                Toast.makeText(
-                                    this,
-                                    "Profile updated, but password could not be changed: ${exception.message}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
+                        }
+                        updates["photoUrl"] = requireNotNull(pendingPhotoUrl)
+                    } else if (existingPhotoUrl.isNotBlank()) {
+                        updates["photoUrl"] = existingPhotoUrl
                     }
-                }
-                .addOnFailureListener {
 
-                    Toast.makeText(
-                        this,
-                        "Failed to update profile.",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    database.reference.child("users").child(userId)
+                        .updateChildren(updates).await()
+
+                    if (pendingPhotoUrl != null) {
+                        existingPhotoUrl = pendingPhotoUrl.orEmpty()
+                    }
+                    selectedBytes = null
+                    pendingPhotoUrl = null
+
+                    if (newPassword.isNotEmpty()) {
+                        try {
+                            currentUser.updatePassword(newPassword).await()
+                        } catch (_: Exception) {
+                            // Profile still saved
+                        }
+                    }
+                    finish()
+                } catch (e: Exception) {
+                    photoStatus.visibility = View.VISIBLE
+                    photoStatus.text = e.localizedMessage ?: "Failed to update profile."
+                } finally {
+                    busy = false
+                    saveButton.isEnabled = true
                 }
+            }
         }
     }
 }

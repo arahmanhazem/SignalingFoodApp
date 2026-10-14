@@ -83,12 +83,21 @@ class LoginActivity : AppCompatActivity() {
                             val savedIdentity = snapshot.getValue(String::class.java)
 
                             if (savedIdentity.equals(identity, ignoreCase = true)) {
-                                // Correct path: open the home screen
-                                // (later: buyers will go to their own Buyer Home screen)
-                                val homeScreen = if (identity == "Buyer") BuyerHomeActivity::class.java else HomeActivity::class.java
-                                val home = Intent(this, homeScreen)
-                                home.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                startActivity(home)
+                                if (identity == "Seller") {
+                                    // Seller path lives in SellerActivity (merged from seller-app)
+                                    val seller = Intent(
+                                        this,
+                                        com.abdelrahmanhazem.seller.SellerActivity::class.java
+                                    )
+                                    seller.flags =
+                                        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    startActivity(seller)
+                                } else {
+                                    val home = Intent(this, BuyerHomeActivity::class.java)
+                                    home.flags =
+                                        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    startActivity(home)
+                                }
                             } else {
                                 // Wrong path: log out immediately
                                 auth.signOut()

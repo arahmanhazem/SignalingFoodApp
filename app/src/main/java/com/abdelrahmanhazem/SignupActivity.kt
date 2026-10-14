@@ -116,12 +116,15 @@ class SignupActivity : AppCompatActivity() {
                         .addOnSuccessListener {
                             Toast.makeText(this, "Welcome, $name!", Toast.LENGTH_SHORT).show()
 
-                            // Open the home screen and clear Welcome/Sign Up from the back stack
-                            // (later: buyers will go to their own Buyer Home screen)
-                            val homeScreen = if (identity == "Buyer") BuyerHomeActivity::class.java else HomeActivity::class.java
-                            val home = Intent(this, homeScreen)
-                            home.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                            startActivity(home)
+                            // Buyer → BuyerHome; Seller → SellerActivity (merged seller path)
+                            val next = if (identity == "Seller") {
+                                Intent(this, com.abdelrahmanhazem.seller.SellerActivity::class.java)
+                            } else {
+                                Intent(this, BuyerHomeActivity::class.java)
+                            }
+                            next.flags =
+                                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            startActivity(next)
                         }
                         .addOnFailureListener { e ->
                             setLoading(false)

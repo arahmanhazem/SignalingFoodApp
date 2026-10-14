@@ -3,12 +3,12 @@ package com.abdelrahmanhazem
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import com.abdelrahmanhazem.seller.SellerActivity
 import com.google.android.material.card.MaterialCardView
 
 /**
- * Welcome screen: the user chooses which path to enter.
- * The chosen role ("Buyer" or "Seller") is passed to the Sign Up screen
- * as the "identity" extra, and saved with the account.
+ * Welcome screen: Buyer path uses the existing Sign Up / Log In screens.
+ * Seller path opens the merged SellerActivity (auth + shop profile + S3 photos).
  */
 class MainActivity : AppCompatActivity() {
 
@@ -17,18 +17,13 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         findViewById<MaterialCardView>(R.id.cardBuyer).setOnClickListener {
-            openSignup("Buyer")
+            val intent = Intent(this, SignupActivity::class.java)
+            intent.putExtra("identity", "Buyer")
+            startActivity(intent)
         }
 
         findViewById<MaterialCardView>(R.id.cardSeller).setOnClickListener {
-            openSignup("Seller")
+            startActivity(Intent(this, SellerActivity::class.java))
         }
-    }
-
-    /** Opens the Sign Up screen for the chosen role. */
-    private fun openSignup(identity: String) {
-        val intent = Intent(this, SignupActivity::class.java)
-        intent.putExtra("identity", identity)
-        startActivity(intent)
     }
 }
