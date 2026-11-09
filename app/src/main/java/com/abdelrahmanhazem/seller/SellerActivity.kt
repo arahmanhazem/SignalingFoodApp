@@ -1,5 +1,6 @@
 package com.abdelrahmanhazem.seller
 
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.view.View
@@ -11,6 +12,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.abdelrahmanhazem.MainActivity
 import com.abdelrahmanhazem.R
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.imageview.ShapeableImageView
@@ -25,8 +27,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-/** Seller path: sign in / sign up, then shop profile with photo upload. */
+/**
+ * Seller path: sign in / sign up, then the seller home (products, add, profile).
+ * Opened with EXTRA_SHOW_PROFILE = true from the home's Profile tab to show the shop profile.
+ */
 class SellerActivity : AppCompatActivity() {
+
+    companion object {
+        const val EXTRA_SHOW_PROFILE = "showProfile"
+    }
 
     private val auth by lazy { FirebaseAuth.getInstance() }
     private val users by lazy { FirebaseDatabase.getInstance().getReference("users") }
@@ -68,7 +77,13 @@ class SellerActivity : AppCompatActivity() {
             }
         })
         showAuth(signup = false)
-        if (auth.currentUser != null) runTask { openVerifiedProfile() }
+        if (auth.currentUser != null) {
+            if (intent.getBooleanExtra(EXTRA_SHOW_PROFILE, false)) {
+                runTask { openVerifiedProfile() }
+            } else {
+                runTask { openHome() }
+            }
+        }
     }
 
     private fun clearStatus() {
@@ -201,7 +216,7 @@ class SellerActivity : AppCompatActivity() {
                 } else {
                     auth.signInWithEmailAndPassword(emailValue, passwordValue).await()
                 }
-                openVerifiedProfile()
+                openHome()
             }
         }
     }
@@ -215,6 +230,13 @@ class SellerActivity : AppCompatActivity() {
             error("This account is not a seller account.")
         }
         return snapshot
+    }
+
+    /** Milestone 3: after a verified seller login, open the seller home with the products grid. */
+    private suspend fun openHome() {
+        verifiedProfile()
+        startActivity(Intent(this, SellerHomeActivity::class.java))
+        finish()
     }
 
     private suspend fun openVerifiedProfile() {
@@ -256,7 +278,12 @@ class SellerActivity : AppCompatActivity() {
         btnLogout.setOnClickListener {
             if (busy) return@setOnClickListener
             auth.signOut()
-            showAuth(signup = false)
+            // Close the seller home too and go back to the welcome screen
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            )
+            finish()
         }
 
         btnSave.setOnClickListener {
