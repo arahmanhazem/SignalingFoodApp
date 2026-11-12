@@ -1,6 +1,7 @@
 package com.abdelrahmanhazem.buyer
 
 import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
@@ -19,6 +20,7 @@ import com.google.firebase.database.ServerValue
  */
 object Cart {
 
+    /** Kept in sync with seller.Order.STATUS_WAITING */
     const val FIRST_ORDER_STATUS = "Waiting for Seller Approval"
 
     private val db: DatabaseReference get() = FirebaseDatabase.getInstance().reference
@@ -61,8 +63,14 @@ object Cart {
         }.filter { it.qty > 0 }.sortedBy { it.name.lowercase() }
     )
 
-    /** Adds one of [product] to the cart (creates the item the first time). */
+    /**
+     * Adds one of [product] to the cart (creates the item the first time).
+     * Rejects sold-out items. Callers should also check qty against stock before calling.
+     */
     fun addOne(buyerId: String, shopName: String, product: Product): Task<Void> {
+        if (product.stock <= 0) {
+            return Tasks.forException(IllegalStateException("This item is sold out."))
+        }
         val p = "items/${product.id}"
         return ref(buyerId).updateChildren(
             mapOf(

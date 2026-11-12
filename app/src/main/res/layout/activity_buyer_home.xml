@@ -110,77 +110,93 @@
                     android:textSize="15sp" />
             </LinearLayout>
 
-            <!-- Categories -->
+            <!-- Sort / browse chips (quick-commerce style) -->
             <TextView
                 style="@style/Text.Section"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="28dp"
-                android:text="CATEGORIES" />
+                android:text="SORT BY" />
 
             <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="10dp"
                 android:clipToPadding="false"
                 android:scrollbars="none">
 
                 <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/chipGroupCategories"
+                    android:id="@+id/chipGroupSort"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    app:chipSpacingHorizontal="8dp"
                     app:selectionRequired="true"
                     app:singleLine="true"
                     app:singleSelection="true">
 
                     <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSortRecommended"
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:checked="true"
-                        android:text="All" />
+                        android:text="Recommended" />
 
                     <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSortAZ"
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Groceries" />
+                        android:text="A–Z" />
 
                     <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSortZA"
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Bakery" />
+                        android:text="Z–A" />
 
                     <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSortMostItems"
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Fruits &amp; Veg" />
+                        android:text="Most items" />
 
                     <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSortWithPhotos"
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Drinks" />
-
-                    <com.google.android.material.chip.Chip
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Snacks" />
+                        android:text="With photos" />
                 </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
 
             <!-- Shops section -->
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="28dp"
-                android:text="Shops near you"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Shops near you"
+                    android:textColor="@color/text_primary"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvShopCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    tools:text="4 shops" />
+            </LinearLayout>
 
             <!-- Loading spinner while shops are read from Firebase -->
             <ProgressBar

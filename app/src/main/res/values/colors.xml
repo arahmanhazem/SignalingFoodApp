@@ -17,6 +17,10 @@
     <color name="divider">#E9E9EC</color>
 
     <color name="error">#D93025</color>
+    <color name="error_soft">#FDECEA</color>
+    <color name="success">#1B7F4E</color>
+    <color name="success_soft">#E8F5EE</color>
+
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

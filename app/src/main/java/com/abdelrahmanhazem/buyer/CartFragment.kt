@@ -65,6 +65,11 @@ class CartFragment : Fragment(R.layout.fragment_cart) {
         val adapter = CartAdapter(
             owner = viewLifecycleOwner,
             onPlus = { item ->
+                val stock = stocks[item.productId]
+                if (stock == null || item.qty >= stock) {
+                    showError("No more of this item in stock.")
+                    return@CartAdapter
+                }
                 Cart.ref(buyerId).child("items").child(item.productId).child("qty")
                     .setValue(ServerValue.increment(1))
                     .addOnFailureListener { showError("Could not update cart: ${it.message}") }
@@ -84,8 +89,9 @@ class CartFragment : Fragment(R.layout.fragment_cart) {
             content.visibility = if (hasItems) View.VISIBLE else View.GONE
             empty.visibility = if (hasItems) View.GONE else View.VISIBLE
 
-            tvShop.text = "Your order from ${state.shopName}"
-            tvCount.text = if (state.count == 1) "1 item" else "${state.count} items"
+            val shopLabel = state.shopName.ifBlank { "this shop" }
+            tvShop.text = "From $shopLabel"
+            tvCount.text = if (state.count == 1) "1 item in basket" else "${state.count} items in basket"
             tvTotal.text = egp(state.total)
             btnPlace.text = "Place order · ${egp(state.total)}"
             adapter.submit(state, stocks)

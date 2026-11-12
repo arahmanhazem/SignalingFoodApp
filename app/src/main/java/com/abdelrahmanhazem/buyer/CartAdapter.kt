@@ -57,9 +57,9 @@ class CartAdapter(
 
         PhotoLoader.load(owner, holder.photo, holder.initial, "products", state.sellerId, item.imageUrl)
 
-        // If we know the shop's stock, don't allow more than that
+        // Only allow "+" when we know stock and qty is still below it
         val stock = stocks[item.productId]
-        val canAddMore = stock == null || item.qty < stock
+        val canAddMore = stock != null && item.qty < stock
         holder.plus.isEnabled = canAddMore
         holder.plus.alpha = if (canAddMore) 1f else 0.35f
 

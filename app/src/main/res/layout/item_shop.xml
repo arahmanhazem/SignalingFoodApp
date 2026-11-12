@@ -8,7 +8,7 @@
     android:clickable="true"
     android:focusable="true"
     app:cardBackgroundColor="@color/background"
-    app:cardCornerRadius="18dp"
+    app:cardCornerRadius="20dp"
     app:cardElevation="0dp"
     app:strokeColor="@color/divider"
     app:strokeWidth="1dp">
@@ -21,7 +21,7 @@
         <!-- Photo area: first letter underneath, photo on top once it loads -->
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="112dp"
+            android:layout_height="124dp"
             android:background="@color/brand_soft">
 
             <TextView

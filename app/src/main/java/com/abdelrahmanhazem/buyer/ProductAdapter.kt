@@ -77,12 +77,14 @@ class ProductAdapter(
         holder.stepper.visibility = if (inCart > 0) View.VISIBLE else View.GONE
         holder.qty.text = inCart.toString()
 
-        // Can't add more than the shop has
-        val canAddMore = inCart < product.stock
+        // Can't add sold-out items or go above stock
+        val canAddMore = product.stock > 0 && inCart < product.stock
         holder.plus.isEnabled = canAddMore
         holder.plus.alpha = if (canAddMore) 1f else 0.35f
 
-        holder.add.setOnClickListener { onAdd(product) }
+        holder.add.setOnClickListener {
+            if (product.stock > 0 && inCart < product.stock) onAdd(product)
+        }
         holder.plus.setOnClickListener { if (canAddMore) onAdd(product) }
         holder.minus.setOnClickListener { onRemove(product, inCart) }
     }
