@@ -14,37 +14,48 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.MutableData
 import com.google.firebase.database.Query
 import com.google.firebase.database.ServerValue
+import com.google.firebase.database.Transaction
 import com.google.firebase.database.ValueEventListener
+import java.util.Locale
 
-/**
- * Orders tab: live list of orders placed for the signed-in seller.
- * Pending orders can be Approved or Declined; the status is saved in Firebase.
- */
 class SellerOrdersFragment : Fragment(R.layout.fragment_seller_orders) {
 
     private var query: Query? = null
     private var listener: ValueEventListener? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
         val tvCount = view.findViewById<TextView>(R.id.tvOrderCount)
         val tvEmpty = view.findViewById<TextView>(R.id.tvEmptyOrders)
         val progress = view.findViewById<ProgressBar>(R.id.progressOrders)
         val list = view.findViewById<RecyclerView>(R.id.rvOrders)
 
         val adapter = OrderAdapter(
-            onApprove = { order -> confirmStatus(order, Order.STATUS_APPROVED, "Approve this order?") },
-            onDecline = { order -> confirmStatus(order, Order.STATUS_DECLINED, "Decline this order?") }
+            onAdvance = { order ->
+                order.nextStatus()?.let { next ->
+                    confirmStatus(order, next, "Set order to $next?")
+                }
+            },
+            onDecline = { order ->
+                confirmStatus(order, Order.STATUS_DECLINED, "Decline this order?")
+            }
         )
+
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = adapter
 
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        val q = FirebaseDatabase.getInstance().getReference(Order.NODE)
-            .orderByChild("sellerId").equalTo(uid)
 
-        val l = object : ValueEventListener {
+        val ordersQuery = FirebaseDatabase.getInstance()
+            .getReference(Order.NODE)
+            .orderByChild("sellerId")
+            .equalTo(uid)
+
+        val ordersListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val orders = snapshot.children
                     .mapNotNull { Order.fromSnapshot(it) }
@@ -52,17 +63,21 @@ class SellerOrdersFragment : Fragment(R.layout.fragment_seller_orders) {
                         compareByDescending<Order> { it.needsApproval() }
                             .thenByDescending { it.createdAt }
                     )
+
                 adapter.submitList(orders)
                 progress.visibility = View.GONE
+
                 val pending = orders.count { it.needsApproval() }
+
                 tvCount.text = when {
                     orders.isEmpty() -> "No orders yet"
                     pending == 0 && orders.size == 1 -> "1 order"
                     pending == 0 -> "${orders.size} orders"
-                    pending == 1 -> "1 waiting · ${orders.size} total"
                     else -> "$pending waiting · ${orders.size} total"
                 }
-                tvEmpty.visibility = if (orders.isEmpty()) View.VISIBLE else View.GONE
+
+                tvEmpty.visibility =
+                    if (orders.isEmpty()) View.VISIBLE else View.GONE
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -71,48 +86,98 @@ class SellerOrdersFragment : Fragment(R.layout.fragment_seller_orders) {
                 tvEmpty.text = "Could not load orders: ${error.message}"
             }
         }
-        q.addValueEventListener(l)
-        query = q
-        listener = l
+
+        query = ordersQuery
+        listener = ordersListener
+        ordersQuery.addValueEventListener(ordersListener)
     }
 
-    /** Asks first, then writes the new status to orders/<id>. */
-    private fun confirmStatus(order: Order, newStatus: String, title: String) {
-        val message = "${order.itemSummary}\n${money(order.total)}"
+    private fun confirmStatus(order: Order, target: String, title: String) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(title)
-            .setMessage(message)
+            .setMessage("${order.itemSummary}\n${money(order.total)}")
             .setNegativeButton("Cancel", null)
-            .setPositiveButton(if (newStatus == Order.STATUS_APPROVED) "Approve" else "Decline") { _, _ ->
-                setStatus(order.id, newStatus)
+            .setPositiveButton("Confirm") { _, _ ->
+                setStatus(order, target)
             }
             .show()
     }
 
-    private fun setStatus(orderId: String, status: String) {
-        FirebaseDatabase.getInstance().getReference(Order.NODE).child(orderId)
-            .updateChildren(
-                mapOf(
-                    "status" to status,
-                    "updatedAt" to ServerValue.TIMESTAMP
+    private fun setStatus(order: Order, target: String) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        val orderRef = FirebaseDatabase.getInstance()
+            .getReference(Order.NODE)
+            .child(order.id)
+
+        orderRef.runTransaction(object : Transaction.Handler {
+            override fun doTransaction(data: MutableData): Transaction.Result {
+                // Firebase may initially have no local copy of this order.
+                // Returning the unchanged data lets it retry with server data.
+                if (data.value == null) {
+                    return Transaction.success(data)
+                }
+
+                val storedSeller = data.child("sellerId")
+                    .getValue(String::class.java)
+
+                val storedStatus = data.child("status")
+                    .getValue(String::class.java)
+                    .orEmpty()
+
+                val storedMethod = data.child("fulfillmentMethod")
+                    .getValue(String::class.java)
+                    .orEmpty()
+
+                // Reject an action if the order changed after the card was shown.
+                if (storedSeller != uid || storedStatus != order.status) {
+                    return Transaction.abort()
+                }
+
+                val currentOrder = order.copy(
+                    status = storedStatus,
+                    fulfillmentMethod = storedMethod
                 )
-            )
-            .addOnSuccessListener {
-                val label = if (status == Order.STATUS_APPROVED) "Order approved" else "Order declined"
-                Toast.makeText(requireContext(), label, Toast.LENGTH_SHORT).show()
+
+                val advancing = target == currentOrder.nextStatus()
+                val declining = target == Order.STATUS_DECLINED &&
+                        currentOrder.needsApproval()
+
+                if (!advancing && !declining) {
+                    return Transaction.abort()
+                }
+
+                data.child("status").value = target
+                data.child("updatedAt").value = ServerValue.TIMESTAMP
+
+                return Transaction.success(data)
             }
-            .addOnFailureListener {
-                Toast.makeText(
-                    requireContext(),
-                    "Could not update order: ${it.message}",
-                    Toast.LENGTH_LONG
-                ).show()
+
+            override fun onComplete(
+                error: DatabaseError?,
+                committed: Boolean,
+                snapshot: DataSnapshot?
+            ) {
+                val message = when {
+                    error != null -> "Could not update order: ${error.message}"
+                    committed && snapshot?.child("status")?.value == target ->
+                        "Order: $target"
+                    else -> "This order changed. Check its latest status."
+                }
+
+                context?.let { ctx ->
+                    Toast.makeText(ctx, message, Toast.LENGTH_SHORT).show()
+                }
             }
+        }, false)
     }
 
     private fun money(amount: Double): String =
-        if (amount % 1.0 == 0.0) "EGP ${amount.toLong()}"
-        else String.format(java.util.Locale.US, "EGP %.2f", amount)
+        if (amount % 1.0 == 0.0) {
+            "EGP ${amount.toLong()}"
+        } else {
+            String.format(Locale.US, "EGP %.2f", amount)
+        }
 
     override fun onDestroyView() {
         listener?.let { query?.removeEventListener(it) }

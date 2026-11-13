@@ -12,12 +12,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * Fills the seller Orders list: one item_order card per Order.
- * Pending orders show Approve / Decline; decided orders only show status.
- */
 class OrderAdapter(
-    private val onApprove: (Order) -> Unit,
+    private val onAdvance: (Order) -> Unit,
     private val onDecline: (Order) -> Unit
 ) : RecyclerView.Adapter<OrderAdapter.Holder>() {
 
@@ -35,12 +31,18 @@ class OrderAdapter(
         val items: TextView = view.findViewById(R.id.tvOrderItems)
         val meta: TextView = view.findViewById(R.id.tvOrderMeta)
         val actions: View = view.findViewById(R.id.orderActions)
-        val approve: MaterialButton = view.findViewById(R.id.btnApproveOrder)
-        val decline: MaterialButton = view.findViewById(R.id.btnDeclineOrder)
+
+        val approve: MaterialButton =
+            view.findViewById(R.id.btnApproveOrder)
+
+        val decline: MaterialButton =
+            view.findViewById(R.id.btnDeclineOrder)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_order, parent, false)
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_order, parent, false)
+
         return Holder(view)
     }
 
@@ -48,50 +50,83 @@ class OrderAdapter(
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val order = orders[position]
+        val context = holder.itemView.context
         val pending = order.needsApproval()
-        val ctx = holder.itemView.context
+        val next = order.nextStatus()
 
-        holder.status.text = when {
-            pending -> Order.STATUS_WAITING
-            order.status.isBlank() -> "New order"
-            else -> order.status
-        }
-        when {
-            pending -> {
-                holder.status.setBackgroundResource(R.drawable.bg_chip)
-                holder.status.setTextColor(ContextCompat.getColor(ctx, R.color.brand_dark))
-            }
-            order.status == Order.STATUS_APPROVED -> {
-                holder.status.setBackgroundResource(R.drawable.bg_status_approved)
-                holder.status.setTextColor(ContextCompat.getColor(ctx, R.color.success))
-            }
-            order.status == Order.STATUS_DECLINED -> {
+        holder.status.text = if (pending) Order.STATUS_WAITING else order.status
+
+        when (order.status) {
+            Order.STATUS_DECLINED -> {
                 holder.status.setBackgroundResource(R.drawable.bg_status_declined)
-                holder.status.setTextColor(ContextCompat.getColor(ctx, R.color.error))
+                holder.status.setTextColor(
+                    ContextCompat.getColor(context, R.color.error)
+                )
             }
+
+            Order.STATUS_APPROVED, Order.DELIVERED -> {
+                holder.status.setBackgroundResource(R.drawable.bg_status_approved)
+                holder.status.setTextColor(
+                    ContextCompat.getColor(context, R.color.success)
+                )
+            }
+
             else -> {
                 holder.status.setBackgroundResource(R.drawable.bg_chip)
-                holder.status.setTextColor(ContextCompat.getColor(ctx, R.color.brand_dark))
+                holder.status.setTextColor(
+                    ContextCompat.getColor(context, R.color.brand_dark)
+                )
             }
         }
 
         holder.total.text = money(order.total)
         holder.items.text = order.itemSummary
-        val countLabel = if (order.itemCount == 1) "1 item" else "${order.itemCount} items"
-        val timeLabel = if (order.createdAt > 0L) " · ${formatTime(order.createdAt)}" else ""
+
+        val countLabel = if (order.itemCount == 1) {
+            "1 item"
+        } else {
+            "${order.itemCount} items"
+        }
+
+        val timeLabel = if (order.createdAt > 0L) {
+            " · ${formatTime(order.createdAt)}"
+        } else {
+            ""
+        }
+
         holder.meta.text = countLabel + timeLabel
 
-        holder.actions.visibility = if (pending) View.VISIBLE else View.GONE
-        holder.approve.setOnClickListener { onApprove(order) }
+        // RecyclerView reuses cards, so reset both buttons on every bind.
+        holder.actions.visibility =
+            if (pending || next != null) View.VISIBLE else View.GONE
+
+        holder.approve.visibility =
+            if (next != null) View.VISIBLE else View.GONE
+
+        holder.decline.visibility =
+            if (pending) View.VISIBLE else View.GONE
+
+        holder.approve.text = when (next) {
+            Order.PREPARING -> "Accept order"
+            Order.READY -> "Mark ready for pickup"
+            Order.DELIVERING -> "Start delivery"
+            Order.DELIVERED -> "Mark delivered"
+            else -> ""
+        }
+
+        holder.approve.setOnClickListener { onAdvance(order) }
         holder.decline.setOnClickListener { onDecline(order) }
     }
 
     private fun money(amount: Double): String =
-        if (amount % 1.0 == 0.0) "EGP ${amount.toLong()}"
-        else String.format(Locale.US, "EGP %.2f", amount)
+        if (amount % 1.0 == 0.0) {
+            "EGP ${amount.toLong()}"
+        } else {
+            String.format(Locale.US, "EGP %.2f", amount)
+        }
 
     private fun formatTime(millis: Long): String {
-        val fmt = SimpleDateFormat("dd MMM, HH:mm", Locale.US)
-        return fmt.format(Date(millis))
+        val formatter = SimpleDateFormat("dd MMM, HH:mm", Locale.US)
+        return formatter.format(Date(millis))
     }
 }

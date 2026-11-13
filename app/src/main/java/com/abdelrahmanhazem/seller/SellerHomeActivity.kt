@@ -11,7 +11,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
+import android.view.View
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.viewpager2.widget.ViewPager2
 import com.abdelrahmanhazem.MainActivity
 import com.abdelrahmanhazem.R
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -37,6 +39,13 @@ class SellerHomeActivity : AppCompatActivity() {
     }
 
     private lateinit var bottomNav: BottomNavigationView
+    private lateinit var pager: ViewPager2
+
+    private val pageIds = listOf(
+        R.id.nav_seller_products,
+        R.id.nav_seller_add,
+        R.id.nav_seller_orders
+    )
 
     private var ordersQuery: Query? = null
     private var ordersListener: ValueEventListener? = null
@@ -60,60 +69,85 @@ class SellerHomeActivity : AppCompatActivity() {
         askNotificationPermission()
         listenForNewOrders()
 
-        bottomNav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_seller_products -> {
-                    showTab(SellerProductsFragment())
-                    true
+        pager = findViewById(R.id.sellerPager)
+
+        pager.adapter = object : FragmentStateAdapter(this) {
+            override fun getItemCount(): Int = pageIds.size
+
+            override fun createFragment(position: Int): Fragment {
+                return when (pageIds[position]) {
+                    R.id.nav_seller_products -> SellerProductsFragment()
+                    R.id.nav_seller_add -> ProductFormFragment.newInstance()
+                    R.id.nav_seller_orders -> SellerOrdersFragment()
+                    else -> error("Unknown seller page")
                 }
-                R.id.nav_seller_add -> {
-                    showTab(ProductFormFragment.newInstance())
-                    true
-                }
-                R.id.nav_seller_orders -> {
-                    // Clear the badge when the seller opens Orders
-                    bottomNav.removeBadge(R.id.nav_seller_orders)
-                    showTab(SellerOrdersFragment())
-                    true
-                }
-                R.id.nav_seller_profile -> {
-                    startActivity(
-                        Intent(this, SellerActivity::class.java)
-                            .putExtra(SellerActivity.EXTRA_SHOW_PROFILE, true)
-                    )
-                    false // keep the current tab highlighted when coming back
-                }
-                else -> false
             }
         }
 
-        if (savedInstanceState == null) {
-            bottomNav.selectedItemId = R.id.nav_seller_products
+        // When the seller swipes, highlight the matching bottom tab.
+        pager.registerOnPageChangeCallback(
+            object : ViewPager2.OnPageChangeCallback() {
+                override fun onPageSelected(position: Int) {
+                    val selectedId = pageIds[position]
+                    bottomNav.menu.findItem(selectedId).isChecked = true
+
+                    if (selectedId == R.id.nav_seller_orders) {
+                        bottomNav.removeBadge(selectedId)
+                    }
+                }
+            }
+        )
+
+        // A tab tap moves the same pager. Profile opens its own activity.
+        bottomNav.setOnItemSelectedListener { item ->
+            if (item.itemId == R.id.nav_seller_profile) {
+                startActivity(
+                    Intent(this, SellerActivity::class.java)
+                        .putExtra(SellerActivity.EXTRA_SHOW_PROFILE, true)
+                )
+                false
+            } else {
+                val position = pageIds.indexOf(item.itemId)
+                if (position >= 0) {
+                    pager.setCurrentItem(position, true)
+                }
+                position >= 0
+            }
         }
+
+        // Back from an edited product reveals the grid again.
+        supportFragmentManager.addOnBackStackChangedListener {
+            updateEditorVisibility()
+        }
+        updateEditorVisibility()
     }
 
-    /** Replaces the screen content with a tab, closing any open Edit screen first. */
-    private fun showTab(fragment: Fragment) {
-        supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.sellerContainer, fragment)
-            .commit()
+    private fun updateEditorVisibility() {
+        val editing = supportFragmentManager.findFragmentByTag("edit") != null
+        val editor = findViewById<View>(R.id.sellerContainer)
+
+        editor.visibility = if (editing) View.VISIBLE else View.GONE
+        pager.visibility = if (editing) View.GONE else View.VISIBLE
+        bottomNav.visibility = if (editing) View.GONE else View.VISIBLE
     }
 
-    /** Called by the Add screen after saving a new product. */
+    /** The Add screen calls this after it successfully saves a product. */
     fun showProducts() {
-        bottomNav.selectedItemId = R.id.nav_seller_products
+        pager.setCurrentItem(0, true)
     }
 
-    /** Opens the Edit screen for one product; Back returns to the grid. */
+    /** Opens an existing product for editing and supports the Android Back button. */
     fun openEditor(productId: String) {
         supportFragmentManager.beginTransaction()
-            .replace(R.id.sellerContainer, ProductFormFragment.newInstance(productId))
+            .setReorderingAllowed(true)
+            .replace(
+                R.id.sellerContainer,
+                ProductFormFragment.newInstance(productId),
+                "edit"
+            )
             .addToBackStack("edit")
             .commit()
     }
-
-    // ---------- New-order notifications ----------
 
     private fun createOrderChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
