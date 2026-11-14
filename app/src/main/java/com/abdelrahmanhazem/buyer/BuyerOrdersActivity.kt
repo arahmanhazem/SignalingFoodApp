@@ -7,6 +7,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.abdelrahmanhazem.R
@@ -17,43 +18,52 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.Query
 import com.google.firebase.database.ValueEventListener
 
-/**
- * Buyer Orders screen: live list of orders this buyer placed
- * (orders where buyerId = signed-in user). Newest first.
- * Status updates live when the seller approves or declines.
- */
 class BuyerOrdersActivity : AppCompatActivity() {
-
-    private var ordersQuery: Query? = null
-    private var ordersListener: ValueEventListener? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_buyer_orders)
+
+        if (savedInstanceState == null) {
+            supportFragmentManager.beginTransaction()
+                .replace(android.R.id.content, BuyerOrdersFragment())
+                .commit()
+        }
+    }
+}
+
+/** The same live orders list works as a pager page or a standalone screen. */
+class BuyerOrdersFragment : Fragment(R.layout.activity_buyer_orders) {
+
+    private var query: Query? = null
+    private var listener: ValueEventListener? = null
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
         val buyerId = FirebaseAuth.getInstance().currentUser?.uid
         if (buyerId == null) {
-            finish()
+            requireActivity().finish()
             return
         }
 
-        findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
+        val list = view.findViewById<RecyclerView>(R.id.rvBuyerOrders)
+        val progress = view.findViewById<ProgressBar>(R.id.progressBuyerOrders)
+        val empty = view.findViewById<View>(R.id.emptyBuyerOrders)
+        val count = view.findViewById<TextView>(R.id.tvBuyerOrderCount)
 
-        val rv = findViewById<RecyclerView>(R.id.rvBuyerOrders)
-        val progress = findViewById<ProgressBar>(R.id.progressBuyerOrders)
-        val empty = findViewById<View>(R.id.emptyBuyerOrders)
-        val tvCount = findViewById<TextView>(R.id.tvBuyerOrderCount)
+        view.findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
+            requireActivity().onBackPressedDispatcher.onBackPressed()
+        }
 
         val adapter = BuyerOrderAdapter()
-        rv.layoutManager = LinearLayoutManager(this)
-        rv.adapter = adapter
+        list.layoutManager = LinearLayoutManager(requireContext())
+        list.adapter = adapter
 
-        val query = FirebaseDatabase.getInstance().reference
+        val orderRef = FirebaseDatabase.getInstance().reference
             .child(Order.NODE)
             .orderByChild("buyerId")
             .equalTo(buyerId)
 
-        val listener = object : ValueEventListener {
+        val updates = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val orders = snapshot.children
                     .map { Order.from(it) }
@@ -63,9 +73,9 @@ class BuyerOrdersActivity : AppCompatActivity() {
                 adapter.submit(orders)
                 progress.visibility = View.GONE
                 empty.visibility = if (orders.isEmpty()) View.VISIBLE else View.GONE
-                rv.visibility = if (orders.isEmpty()) View.GONE else View.VISIBLE
+                list.visibility = if (orders.isEmpty()) View.GONE else View.VISIBLE
 
-                tvCount.text = when (orders.size) {
+                count.text = when (orders.size) {
                     0 -> "Nothing here yet"
                     1 -> "1 order"
                     else -> "${orders.size} orders"
@@ -75,19 +85,20 @@ class BuyerOrdersActivity : AppCompatActivity() {
             override fun onCancelled(error: DatabaseError) {
                 progress.visibility = View.GONE
                 Toast.makeText(
-                    this@BuyerOrdersActivity,
+                    view.context,
                     "Could not load orders: ${error.message}",
                     Toast.LENGTH_LONG
                 ).show()
             }
         }
-        query.addValueEventListener(listener)
-        ordersQuery = query
-        ordersListener = listener
+
+        query = orderRef
+        listener = updates
+        orderRef.addValueEventListener(updates)
     }
 
-    override fun onDestroy() {
-        ordersListener?.let { ordersQuery?.removeEventListener(it) }
-        super.onDestroy()
+    override fun onDestroyView() {
+        listener?.let { query?.removeEventListener(it) }
+        super.onDestroyView()
     }
 }

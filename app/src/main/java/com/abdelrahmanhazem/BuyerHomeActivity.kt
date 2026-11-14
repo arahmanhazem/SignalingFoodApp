@@ -3,17 +3,23 @@ package com.abdelrahmanhazem
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
+import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.abdelrahmanhazem.buyer.BuyerOrdersActivity
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.viewpager2.widget.ViewPager2
+import com.abdelrahmanhazem.buyer.BuyerOrdersFragment
 import com.abdelrahmanhazem.buyer.Shop
 import com.abdelrahmanhazem.buyer.ShopActivity
 import com.abdelrahmanhazem.buyer.ShopAdapter
@@ -26,224 +32,264 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.Query
 import com.google.firebase.database.ValueEventListener
 
-/**
- * Buyer Home screen (first screen of the buyer path after logging in).
- * Greeting, search, sort chips and a live grid of shops (sellers).
- */
+/** The activity owns one pager and one bottom navigation bar for all three pages. */
 class BuyerHomeActivity : AppCompatActivity() {
 
-    companion object {
-        private const val SORT_RECOMMENDED = 0
-        private const val SORT_AZ = 1
-        private const val SORT_ZA = 2
-        private const val SORT_MOST_ITEMS = 3
-        private const val SORT_WITH_PHOTOS = 4
+    private lateinit var pager: ViewPager2
+
+    private val pages = listOf(
+        R.id.nav_home,
+        R.id.nav_orders,
+        R.id.nav_profile
+    )
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
+
+        // Reuse the bottom bar and its existing menu, colors, and labels.
+        val template = layoutInflater.inflate(R.layout.activity_buyer_home, null)
+        val navigation = template.findViewById<BottomNavigationView>(R.id.bottomNav)
+        (navigation.parent as ViewGroup).removeView(navigation)
+
+        val host = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            fitsSystemWindows = true
+            setBackgroundColor(getColor(R.color.background))
+        }
+
+        pager = ViewPager2(this).apply {
+            // A stable framework ID lets Android restore the page after rotation.
+            id = android.R.id.tabcontent
+            orientation = ViewPager2.ORIENTATION_HORIZONTAL
+        }
+
+        host.addView(
+            pager,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+            )
+        )
+        host.addView(navigation)
+        setContentView(host)
+
+        val backToHome = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                showPage(R.id.nav_home)
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, backToHome)
+
+        pager.adapter = object : FragmentStateAdapter(this) {
+            override fun getItemCount(): Int = pages.size
+
+            override fun createFragment(position: Int): Fragment =
+                when (pages[position]) {
+                    R.id.nav_home -> BuyerShopsFragment()
+                    R.id.nav_orders -> BuyerOrdersFragment()
+                    R.id.nav_profile -> BuyerProfileFragment()
+                    else -> error("Unknown buyer page")
+                }
+        }
+
+        // A swipe updates the bottom highlight without starting another activity.
+        pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                navigation.menu.findItem(pages[position]).isChecked = true
+                backToHome.isEnabled = position != 0
+            }
+        })
+
+        navigation.setOnItemSelectedListener { item ->
+            showPage(item.itemId)
+            true
+        }
     }
+
+    fun showPage(menuId: Int) {
+        val position = pages.indexOf(menuId)
+        if (position >= 0) pager.setCurrentItem(position, true)
+    }
+}
+
+/** First pager page: search, sort, and open the shops stored in Firebase. */
+class BuyerShopsFragment : Fragment(R.layout.activity_buyer_home) {
 
     private var shopsQuery: Query? = null
     private var shopsListener: ValueEventListener? = null
     private var productsQuery: Query? = null
     private var productsListener: ValueEventListener? = null
 
-    private var allShops: List<Shop> = emptyList()
-    /** sellerId → how many products that shop has (for "Most items"). */
-    private var itemCounts: Map<String, Int> = emptyMap()
-    private var sortMode = SORT_RECOMMENDED
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-    private var showShopsFn: (() -> Unit)? = null
+        // Only the activity's shared bottom navigation should appear.
+        val duplicateNav = view.findViewById<BottomNavigationView>(R.id.bottomNav)
+        (duplicateNav.parent as ViewGroup).removeView(duplicateNav)
+        view.fitsSystemWindows = false
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_buyer_home)
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val db = FirebaseDatabase.getInstance().reference
 
-        val user = FirebaseAuth.getInstance().currentUser
-        if (user == null) {
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
-            return
+        val greeting = view.findViewById<TextView>(R.id.tvGreeting)
+        val initial = view.findViewById<TextView>(R.id.tvAvatarInitial)
+        val list = view.findViewById<RecyclerView>(R.id.rvShops)
+        val progress = view.findViewById<ProgressBar>(R.id.progressShops)
+        val empty = view.findViewById<View>(R.id.cardEmptyShops)
+        val emptyTitle = view.findViewById<TextView>(R.id.tvEmptyShopsTitle)
+        val emptyMessage = view.findViewById<TextView>(R.id.tvEmptyShopsMessage)
+        val search = view.findViewById<EditText>(R.id.etSearch)
+        val filters = view.findViewById<ChipGroup>(R.id.chipGroupSort)
+        val count = view.findViewById<TextView>(R.id.tvShopCount)
+
+        val adapter = ShopAdapter(viewLifecycleOwner) { shop ->
+            startActivity(ShopActivity.intent(requireContext(), shop))
         }
 
-        val database = FirebaseDatabase.getInstance().reference
-        val tvGreeting = findViewById<TextView>(R.id.tvGreeting)
-        val tvAvatarInitial = findViewById<TextView>(R.id.tvAvatarInitial)
+        list.layoutManager = GridLayoutManager(requireContext(), 2)
+        list.adapter = adapter
 
-        database.child("users").child(user.uid).child("name").get()
-            .addOnSuccessListener { snapshot ->
-                val firstName = (snapshot.getValue(String::class.java) ?: "")
-                    .trim()
-                    .substringBefore(" ")
+        var shops: List<Shop> = emptyList()
+        var productCounts: Map<String, Int> = emptyMap()
+        var shopsLoaded = false
 
-                if (firstName.isNotEmpty()) {
-                    tvGreeting.text = "Hi, $firstName"
-                    tvAvatarInitial.text = firstName.take(1).uppercase()
-                }
+        fun render() {
+            val text = search.text.toString().trim()
+            val filter = filters.checkedChipId
+
+            val matches = shops.filter { shop ->
+                val matchesText = shop.shopName.contains(text, ignoreCase = true) ||
+                        shop.ownerName.contains(text, ignoreCase = true)
+                val matchesPhoto = filter != R.id.chipSortWithPhotos ||
+                        shop.photoUrl.isNotBlank()
+                matchesText && matchesPhoto
             }
 
-        val rvShops = findViewById<RecyclerView>(R.id.rvShops)
-        val progress = findViewById<ProgressBar>(R.id.progressShops)
-        val emptyCard = findViewById<View>(R.id.cardEmptyShops)
-        val emptyTitle = findViewById<TextView>(R.id.tvEmptyShopsTitle)
-        val emptyMessage = findViewById<TextView>(R.id.tvEmptyShopsMessage)
-        val etSearch = findViewById<EditText>(R.id.etSearch)
-        val chipGroupSort = findViewById<ChipGroup>(R.id.chipGroupSort)
-        val tvShopCount = findViewById<TextView>(R.id.tvShopCount)
+            val shown = when (filter) {
+                R.id.chipSortAZ, R.id.chipSortWithPhotos ->
+                    matches.sortedBy { it.shopName.lowercase() }
 
-        val adapter = ShopAdapter(this) { shop -> openShop(shop) }
-        rvShops.layoutManager = GridLayoutManager(this, 2)
-        rvShops.adapter = adapter
+                R.id.chipSortZA ->
+                    matches.sortedByDescending { it.shopName.lowercase() }
 
-        fun showShops() {
-            val text = etSearch.text.toString().trim()
-            var filtered = if (text.isEmpty()) allShops else allShops.filter {
-                it.shopName.contains(text, ignoreCase = true) ||
-                    it.ownerName.contains(text, ignoreCase = true)
-            }
-            if (sortMode == SORT_WITH_PHOTOS) {
-                filtered = filtered.filter { it.photoUrl.isNotBlank() }
-            }
-
-            val shown = when (sortMode) {
-                SORT_AZ -> filtered.sortedBy { it.shopName.lowercase() }
-                SORT_ZA -> filtered.sortedByDescending { it.shopName.lowercase() }
-                SORT_MOST_ITEMS -> filtered.sortedWith(
-                    compareByDescending<Shop> { itemCounts[it.sellerId] ?: 0 }
+                R.id.chipSortMostItems -> matches.sortedWith(
+                    compareByDescending<Shop> { productCounts[it.sellerId] ?: 0 }
                         .thenBy { it.shopName.lowercase() }
                 )
-                SORT_WITH_PHOTOS -> filtered.sortedBy { it.shopName.lowercase() }
-                else -> filtered.sortedWith(
-                    // Recommended: photo + richer inventory first (quick-commerce feel)
+
+                else -> matches.sortedWith(
                     compareByDescending<Shop> { it.photoUrl.isNotBlank() }
-                        .thenByDescending { itemCounts[it.sellerId] ?: 0 }
+                        .thenByDescending { productCounts[it.sellerId] ?: 0 }
                         .thenBy { it.shopName.lowercase() }
                 )
             }
+
             adapter.submit(shown)
 
-            tvShopCount.text = when (shown.size) {
+            count.text = when (shown.size) {
                 0 -> ""
                 1 -> "1 shop"
                 else -> "${shown.size} shops"
             }
 
-            emptyCard.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
+            empty.visibility =
+                if (shopsLoaded && shown.isEmpty()) View.VISIBLE else View.GONE
+
             when {
-                allShops.isEmpty() -> {
+                shops.isEmpty() -> {
                     emptyTitle.text = "No shops yet"
-                    emptyMessage.text = "Sellers are setting up their shops.\nCheck back soon!"
+                    emptyMessage.text = "Sellers are setting up their shops."
                 }
-                sortMode == SORT_WITH_PHOTOS && text.isEmpty() -> {
+                filter == R.id.chipSortWithPhotos && text.isEmpty() -> {
                     emptyTitle.text = "No photos yet"
                     emptyMessage.text = "No shops have uploaded a photo yet."
                 }
                 else -> {
                     emptyTitle.text = "No matches"
-                    emptyMessage.text = if (text.isEmpty()) "Nothing matches this sort."
-                    else "No shop matches \"$text\"."
+                    emptyMessage.text = "Try another search or filter."
                 }
             }
         }
-        showShopsFn = ::showShops
 
-        chipGroupSort.setOnCheckedStateChangeListener { _, checkedIds ->
-            sortMode = when (checkedIds.firstOrNull()) {
-                R.id.chipSortAZ -> SORT_AZ
-                R.id.chipSortZA -> SORT_ZA
-                R.id.chipSortMostItems -> SORT_MOST_ITEMS
-                R.id.chipSortWithPhotos -> SORT_WITH_PHOTOS
-                else -> SORT_RECOMMENDED
-            }
-            showShops()
-        }
+        db.child("users").child(user.uid).child("name").get()
+            .addOnSuccessListener { snapshot ->
+                if (this.view !== view) return@addOnSuccessListener
 
-        val shopsQ = database.child("users").orderByChild("identity").equalTo("Seller")
-        val shopsL = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                allShops = snapshot.children
-                    .map { Shop.from(it) }
-                    .filter { it.shopName.isNotBlank() }
-                progress.visibility = View.GONE
-                showShops()
-            }
+                val name = snapshot.getValue(String::class.java)
+                    .orEmpty().trim().substringBefore(" ")
 
-            override fun onCancelled(error: DatabaseError) {
-                progress.visibility = View.GONE
-                emptyCard.visibility = View.VISIBLE
-                Toast.makeText(
-                    this@BuyerHomeActivity,
-                    "Could not load shops: ${error.message}",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-        shopsQ.addValueEventListener(shopsL)
-        shopsQuery = shopsQ
-        shopsListener = shopsL
-
-        // Product counts power "Recommended" and "Most items"
-        val productsQ = database.child("products")
-        val productsL = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val counts = mutableMapOf<String, Int>()
-                for (child in snapshot.children) {
-                    val sellerId = child.child("sellerId").getValue(String::class.java).orEmpty()
-                    if (sellerId.isNotBlank()) {
-                        counts[sellerId] = (counts[sellerId] ?: 0) + 1
-                    }
+                if (name.isNotEmpty()) {
+                    greeting.text = "Hi, $name"
+                    initial.text = name.take(1).uppercase()
                 }
-                itemCounts = counts
-                showShops()
             }
 
-            override fun onCancelled(error: DatabaseError) {}
-        }
-        productsQ.addValueEventListener(productsL)
-        productsQuery = productsQ
-        productsListener = productsL
+        search.doAfterTextChanged { render() }
+        filters.setOnCheckedStateChangeListener { _, _ -> render() }
 
-        etSearch.doAfterTextChanged { showShops() }
-        etSearch.setOnEditorActionListener { view, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                getSystemService(InputMethodManager::class.java)
-                    .hideSoftInputFromWindow(view.windowToken, 0)
-                view.clearFocus()
+        search.setOnEditorActionListener { field, action, _ ->
+            if (action == EditorInfo.IME_ACTION_SEARCH) {
+                val keyboard = field.context.getSystemService(InputMethodManager::class.java)
+                keyboard?.hideSoftInputFromWindow(field.windowToken, 0)
+                field.clearFocus()
                 true
             } else {
                 false
             }
         }
 
-        findViewById<View>(R.id.avatarButton).setOnClickListener { openProfile() }
+        view.findViewById<View>(R.id.avatarButton).setOnClickListener {
+            (requireActivity() as BuyerHomeActivity).showPage(R.id.nav_profile)
+        }
 
-        val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNav)
-        bottomNav.selectedItemId = R.id.nav_home
-        bottomNav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_home -> true
-                R.id.nav_orders -> {
-                    startActivity(Intent(this, BuyerOrdersActivity::class.java))
-                    false
-                }
-                R.id.nav_profile -> {
-                    openProfile()
-                    false
-                }
-                else -> false
+        val shopRef = db.child("users").orderByChild("identity").equalTo("Seller")
+        val shopUpdates = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                shops = snapshot.children.map { Shop.from(it) }
+                    .filter { it.shopName.isNotBlank() }
+                shopsLoaded = true
+                progress.visibility = View.GONE
+                render()
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                progress.visibility = View.GONE
+                Toast.makeText(view.context, error.message, Toast.LENGTH_LONG).show()
             }
         }
+
+        shopsQuery = shopRef
+        shopsListener = shopUpdates
+        shopRef.addValueEventListener(shopUpdates)
+
+        val productRef = db.child("products")
+        val productUpdates = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                productCounts = snapshot.children
+                    .mapNotNull { it.child("sellerId").getValue(String::class.java) }
+                    .groupingBy { it }
+                    .eachCount()
+                render()
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                // The shop list still works when inventory counts are unavailable.
+            }
+        }
+
+        productsQuery = productRef
+        productsListener = productUpdates
+        productRef.addValueEventListener(productUpdates)
     }
 
-    private fun openShop(shop: Shop) {
-        startActivity(ShopActivity.intent(this, shop))
-    }
-
-    private fun openProfile() {
-        startActivity(Intent(this, ProfileActivity::class.java))
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
+    override fun onDestroyView() {
         shopsListener?.let { shopsQuery?.removeEventListener(it) }
         productsListener?.let { productsQuery?.removeEventListener(it) }
-        showShopsFn = null
+        super.onDestroyView()
     }
 }

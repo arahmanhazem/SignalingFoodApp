@@ -1,287 +1,153 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Buyer Home: greeting, search bar, categories, shops grid, bottom navigation -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fitsSystemWindows="true"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/background">
 
-    <ScrollView
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tvGreeting"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Your shops"
+            android:textColor="@color/text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <FrameLayout
+            android:id="@+id/avatarButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_chip"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Open profile">
+
+            <TextView
+                android:id="@+id/tvAvatarInitial"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="Me"
+                android:textColor="@color/brand_dark"
+                android:textStyle="bold" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/etSearch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:minHeight="48dp"
+        android:hint="Search shops"
+        android:imeOptions="actionSearch"
+        android:inputType="text"
+        android:singleLine="true" />
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/chipGroupSort"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="12dp"
+        app:singleSelection="true"
+        app:selectionRequired="true">
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipRecommended"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="Recommended" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipSortAZ"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="A–Z" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipSortZA"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Z–A" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipSortMostItems"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Most items" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipSortWithPhotos"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="With photos" />
+    </com.google.android.material.chip.ChipGroup>
+
+    <TextView
+        android:id="@+id/tvShopCount"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
+        android:textColor="@color/text_secondary" />
+
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvShops"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:padding="12dp" />
+
+        <ProgressBar
+            android:id="@+id/progressShops"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center" />
+
         <LinearLayout
+            android:id="@+id/cardEmptyShops"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
             android:orientation="vertical"
-            android:paddingHorizontal="20dp"
-            android:paddingTop="20dp"
-            android:paddingBottom="24dp">
+            android:padding="16dp"
+            android:visibility="gone">
 
-            <!-- Header: greeting + avatar -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvGreeting"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Hi there"
-                        android:textColor="@color/text_primary"
-                        android:textSize="24sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        style="@style/Text.Subtitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="What would you like to order today?" />
-                </LinearLayout>
-
-                <!-- Avatar circle with the user's first letter (opens Profile) -->
-                <FrameLayout
-                    android:id="@+id/avatarButton"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="@drawable/bg_circle_soft"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackgroundBorderless">
-
-                    <TextView
-                        android:id="@+id/tvAvatarInitial"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:text="?"
-                        android:textColor="@color/brand_dark"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
-                </FrameLayout>
-            </LinearLayout>
-
-            <!-- Search bar -->
-            <LinearLayout
-                android:id="@+id/searchBar"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="20dp"
-                android:background="@drawable/bg_search"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="16dp">
-
-                <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:contentDescription="@null"
-                    android:src="@drawable/ic_search"
-                    app:tint="@color/text_secondary" />
-
-                <EditText
-                    android:id="@+id/etSearch"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:background="@null"
-                    android:hint="Search shops"
-                    android:imeOptions="actionSearch"
-                    android:inputType="text"
-                    android:maxLines="1"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_hint"
-                    android:textSize="15sp" />
-            </LinearLayout>
-
-            <!-- Sort / browse chips (quick-commerce style) -->
             <TextView
-                style="@style/Text.Section"
+                android:id="@+id/tvEmptyShopsTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
-                android:text="SORT BY" />
+                android:textColor="@color/text_primary"
+                android:textStyle="bold" />
 
-            <HorizontalScrollView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:clipToPadding="false"
-                android:scrollbars="none">
-
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/chipGroupSort"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:chipSpacingHorizontal="8dp"
-                    app:selectionRequired="true"
-                    app:singleLine="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipSortRecommended"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="true"
-                        android:text="Recommended" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipSortAZ"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="A–Z" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipSortZA"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Z–A" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipSortMostItems"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Most items" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipSortWithPhotos"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="With photos" />
-                </com.google.android.material.chip.ChipGroup>
-            </HorizontalScrollView>
-
-            <!-- Shops section -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Shops near you"
-                    android:textColor="@color/text_primary"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvShopCount"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    tools:text="4 shops" />
-            </LinearLayout>
-
-            <!-- Loading spinner while shops are read from Firebase -->
-            <ProgressBar
-                android:id="@+id/progressShops"
+            <TextView
+                android:id="@+id/tvEmptyShopsMessage"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="24dp" />
-
-            <!-- Shops grid (2 columns); the tools: lines only affect Android Studio's preview -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rvShops"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="-6dp"
-                android:layout_marginTop="6dp"
-                android:nestedScrollingEnabled="false"
-                app:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
-                app:spanCount="2"
-                tools:itemCount="4"
-                tools:listitem="@layout/item_shop" />
-
-            <!-- Empty state: shown only when there are no shops yet -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardEmptyShops"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:visibility="gone"
-                app:cardBackgroundColor="@color/background"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/divider"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_horizontal"
-                    android:orientation="vertical"
-                    android:padding="28dp">
-
-                    <FrameLayout
-                        android:layout_width="64dp"
-                        android:layout_height="64dp"
-                        android:background="@drawable/bg_circle_soft">
-
-                        <ImageView
-                            android:layout_width="30dp"
-                            android:layout_height="30dp"
-                            android:layout_gravity="center"
-                            android:contentDescription="@null"
-                            android:src="@drawable/ic_store"
-                            app:tint="@color/brand" />
-                    </FrameLayout>
-
-                    <TextView
-                        android:id="@+id/tvEmptyShopsTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:text="No shops yet"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvEmptyShopsMessage"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:gravity="center"
-                        android:text="Sellers are setting up their shops.\nCheck back soon!"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:gravity="center"
+                android:textColor="@color/text_secondary" />
         </LinearLayout>
-    </ScrollView>
-
-    <!-- Thin line above the bottom bar -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/divider" />
+    </FrameLayout>
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottomNav"
@@ -292,4 +158,5 @@
         app:itemTextColor="@color/bottom_nav_item"
         app:labelVisibilityMode="labeled"
         app:menu="@menu/menu_buyer_bottom" />
+
 </LinearLayout>
