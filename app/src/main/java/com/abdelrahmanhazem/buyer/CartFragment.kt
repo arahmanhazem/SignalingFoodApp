@@ -1,28 +1,34 @@
+
 package com.abdelrahmanhazem.buyer
 
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.DialogInterface
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import android.content.DialogInterface
-import android.os.Bundle
-import android.view.View
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ProgressBar
-import android.widget.TextView
-import android.widget.Toast
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.abdelrahmanhazem.R
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+// DELIVERY APP BONUS: Rewards toggle in checkout
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -191,68 +197,256 @@ class CartFragment : Fragment(R.layout.fragment_cart) {
                 district: String,
                 fee: Double
             ) {
-                val summary = buildString {
-                    append("Method: $method\n")
+                // DELIVERY APP BONUS: Load the buyer's available points and purchase credits.
+                FirebaseDatabase.getInstance().reference
+                    .child("users")
+                    .child(buyerId)
+                    .get()
+                    .addOnSuccessListener { userSnapshot ->
 
-                    if (method == "Delivery") {
-                        append("Address: $address\n")
-                        append("District: $district\n")
-                    }
+                        val availablePoints =
+                            (userSnapshot.child("deliveryPoints").value as? Number)?.toInt() ?: 0
 
-                    append("Subtotal: ${egp(order.total)}\n")
-                    append("Delivery fee: ${egp(fee)}\n")
-                    append("Final total: ${egp(order.total + fee)}")
-                }
+                        val availableCredits =
+                            (userSnapshot.child("purchaseCredits").value as? Number)?.toDouble() ?: 0.0
 
-                MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("Confirm your order")
-                    .setMessage(summary)
-                    .setNegativeButton("Cancel", null)
+                        val orderTotal = order.total + fee
 
-                    .setPositiveButton("Place order") confirm@{ _, _ ->
-                        if (state != order) {
-                            showError("Your cart changed. Please review it again.")
-                            return@confirm
-                        }
+                        // DELIVERY APP BONUS: Create the checkout summary.
+                        val summaryText = TextView(requireContext()).apply {
+                            text = buildString {
+                                append("Method: $method\n")
 
-                        for (item in order.items) {
-                            val available = stocks[item.productId]
-
-                            if (available == null) {
-                                showError("Could not verify stock for ${item.name}. Reopen the cart.")
-                                return@confirm
-                            }
-
-                            if (item.qty <= 0 || item.qty > available) {
-                                showError(
-                                    "${item.name}: you requested ${item.qty}, " +
-                                            "but only $available are available."
-                                )
-                                return@confirm
-                            }
-                        }
-                        btnPlace.text = "Placing order…"
-
-                        Cart.placeOrder(buyerId, order, method, address, district, fee)
-                            .addOnSuccessListener {
-                                btnPlace.isEnabled = true
-                                notifyBuyerOfOrder(order.shopName)
-
-                                context?.let { ctx ->
-                                    MaterialAlertDialogBuilder(ctx)
-                                        .setTitle("Order placed!")
-                                        .setMessage("${order.shopName} received your order.")
-                                        .setPositiveButton("OK", null)
-                                        .show()
+                                if (method == "Delivery") {
+                                    append("Address: $address\n")
+                                    append("District: $district\n")
                                 }
+
+                                append("Subtotal: ${egp(order.total)}\n")
+                                append("Delivery fee: ${egp(fee)}\n")
+                                append("Final total: ${egp(orderTotal)}")
                             }
-                            .addOnFailureListener {
-                                btnPlace.isEnabled = true
-                                render()
-                                showError("Could not place order: ${it.message}")
+                            textSize = 16f
+                        }
+
+                        // DELIVERY APP BONUS: Let the buyer choose whether to use rewards.
+                        val creditsSwitch = SwitchMaterial(requireContext()).apply {
+                            text = "Use rewards (points and purchase credits)"
+                            isChecked = false
+                            isEnabled = availableCredits > 0 || availablePoints > 0
+                            setPadding(0, 24, 0, 0)
+                        }
+
+                        // DELIVERY APP BONUS: Let the buyer choose delivery points for this purchase.
+                        val pointsInput = EditText(requireContext()).apply {
+                            hint = "Points to use for this purchase (10 points = 1 EGP)"
+                            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                            visibility = View.GONE
+                        }
+
+                        val dialogLayout = LinearLayout(requireContext()).apply {
+                            orientation = LinearLayout.VERTICAL
+                            val padding = (24 * resources.displayMetrics.density).toInt()
+                            setPadding(padding, padding, padding, padding)
+
+                            addView(
+                                summaryText,
+                                LinearLayout.LayoutParams(
+                                    LinearLayout.LayoutParams.MATCH_PARENT,
+                                    LinearLayout.LayoutParams.WRAP_CONTENT
+                                )
+                            )
+
+                            addView(
+                                creditsSwitch,
+                                LinearLayout.LayoutParams(
+                                    LinearLayout.LayoutParams.MATCH_PARENT,
+                                    LinearLayout.LayoutParams.WRAP_CONTENT
+                                )
+                            )
+
+                            // DELIVERY APP BONUS: Display the points input in checkout.
+                            addView(
+                                pointsInput,
+                                LinearLayout.LayoutParams(
+                                    LinearLayout.LayoutParams.MATCH_PARENT,
+                                    LinearLayout.LayoutParams.WRAP_CONTENT
+                                )
+                            )
+                        }
+
+                        // DELIVERY APP BONUS: Update the checkout preview using selected rewards.
+                        fun updateRewardsPreview() {
+                            val pointsToUse = if (creditsSwitch.isChecked) {
+                                pointsInput.text.toString().toIntOrNull() ?: 0
+                            } else {
+                                0
                             }
+
+                            val pointsDiscount = pointsToUse / 10.0
+
+                            val creditsUsed = if (creditsSwitch.isChecked) {
+                                minOf(
+                                    availableCredits,
+                                    maxOf(0.0, orderTotal - pointsDiscount)
+                                )
+                            } else {
+                                0.0
+                            }
+
+                            val finalTotal = orderTotal - pointsDiscount - creditsUsed
+
+                            summaryText.text = buildString {
+                                append("Method: $method\n")
+
+                                if (method == "Delivery") {
+                                    append("Address: $address\n")
+                                    append("District: $district\n")
+                                }
+
+                                append("Subtotal: ${egp(order.total)}\n")
+                                append("Delivery fee: ${egp(fee)}\n")
+
+                                if (pointsToUse > 0) {
+                                    append("Delivery points used: $pointsToUse\n")
+                                    append("Points discount: ${egp(pointsDiscount)}\n")
+                                }
+
+                                if (creditsUsed > 0) {
+                                    append("Purchase credits used: ${egp(creditsUsed)}\n")
+                                }
+
+                                append("Final total: ${egp(finalTotal)}")
+                            }
+                        }
+
+                        creditsSwitch.setOnCheckedChangeListener { _, isChecked ->
+                            pointsInput.visibility =
+                                if (isChecked) View.VISIBLE else View.GONE
+                            updateRewardsPreview()
+                        }
+
+                        pointsInput.addTextChangedListener(object : TextWatcher {
+                            override fun beforeTextChanged(
+                                s: CharSequence?,
+                                start: Int,
+                                count: Int,
+                                after: Int
+                            ) {}
+
+                            override fun onTextChanged(
+                                s: CharSequence?,
+                                start: Int,
+                                before: Int,
+                                count: Int
+                            ) {
+                                updateRewardsPreview()
+                            }
+
+                            override fun afterTextChanged(s: Editable?) {}
+                        })
+
+                        MaterialAlertDialogBuilder(requireContext())
+                            .setTitle("Confirm your order")
+                            .setView(dialogLayout)
+                            .setNegativeButton("Cancel", null)
+
+                            .setPositiveButton("Place order") confirm@{ _, _ ->
+                                if (state != order) {
+                                    showError("Your cart changed. Please review it again.")
+                                    return@confirm
+                                }
+
+                                for (item in order.items) {
+                                    val available = stocks[item.productId]
+
+                                    if (available == null) {
+                                        showError("Could not verify stock for ${item.name}. Reopen the cart.")
+                                        return@confirm
+                                    }
+
+                                    if (item.qty <= 0 || item.qty > available) {
+                                        showError(
+                                            "${item.name}: you requested ${item.qty}, " +
+                                                    "but only $available are available."
+                                        )
+                                        return@confirm
+                                    }
+                                }
+
+                                // DELIVERY APP BONUS: Validate the points selected by the buyer.
+                                val pointsToUse = if (creditsSwitch.isChecked) {
+                                    if (pointsInput.text.isBlank()) {
+                                        0
+                                    } else {
+                                        pointsInput.text.toString().toIntOrNull()
+                                            ?: run {
+                                                showError("Enter a valid number of delivery points.")
+                                                return@confirm
+                                            }
+                                    }
+                                } else {
+                                    0
+                                }
+
+                                if (pointsToUse < 0 || pointsToUse > availablePoints) {
+                                    showError("You do not have enough delivery points.")
+                                    return@confirm
+                                }
+
+                                // DELIVERY APP BONUS: Calculate the selected rewards discount.
+                                val pointsDiscount = pointsToUse / 10.0
+
+                                val creditsToUse = if (creditsSwitch.isChecked) {
+                                    minOf(
+                                        availableCredits,
+                                        maxOf(0.0, orderTotal - pointsDiscount)
+                                    )
+                                } else {
+                                    0.0
+                                }
+
+                                if (pointsDiscount + creditsToUse > orderTotal) {
+                                    showError("The selected rewards exceed your order total.")
+                                    return@confirm
+                                }
+
+                                btnPlace.isEnabled = false
+                                btnPlace.text = "Placing order…"
+
+                                Cart.placeOrder(
+                                    buyerId,
+                                    order,
+                                    method,
+                                    address,
+                                    district,
+                                    fee,
+                                    creditsToUse,
+                                    pointsToUse
+                                )
+                                    .addOnSuccessListener {
+                                        btnPlace.isEnabled = true
+                                        notifyBuyerOfOrder(order.shopName)
+
+                                        context?.let { ctx ->
+                                            MaterialAlertDialogBuilder(ctx)
+                                                .setTitle("Order placed!")
+                                                .setMessage("${order.shopName} received your order.")
+                                                .setPositiveButton("OK", null)
+                                                .show()
+                                        }
+                                    }
+                                    .addOnFailureListener {
+                                        btnPlace.isEnabled = true
+                                        render()
+                                        showError("Could not place order: ${it.message}")
+                                    }
+                            }
+                            .show()
                     }
-                    .show()
+                    .addOnFailureListener {
+                        showError("Could not load your rewards balances.")
+                    }
             }
 
             // The last part of the typed address determines the delivery fee.
@@ -396,6 +590,7 @@ class CartFragment : Fragment(R.layout.fragment_cart) {
         NotificationManagerCompat.from(ctx)
             .notify("buyer_order_confirmation", 1, notification)
     }
+
     private fun showError(message: String) {
         context?.let { ctx ->
             Toast.makeText(ctx, message, Toast.LENGTH_LONG).show()

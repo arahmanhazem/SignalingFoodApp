@@ -1,3 +1,4 @@
+
 package com.abdelrahmanhazem
 
 import android.content.Intent
@@ -22,6 +23,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
 class ProfileActivity : AppCompatActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -67,6 +69,7 @@ class BuyerProfileFragment : Fragment(R.layout.activity_profile) {
 
         val page = view ?: return
         val uid = FirebaseAuth.getInstance().currentUser?.uid
+
         if (uid == null) {
             requireActivity().finish()
             return
@@ -97,6 +100,16 @@ class BuyerProfileFragment : Fragment(R.layout.activity_profile) {
                 display(R.id.tvProfileAge, "age")
                 display(R.id.tvProfileIdentity, "identity")
 
+                // DELIVERY APP BONUS: Display the buyer's delivery points and purchase credits
+                val points = (profile.child("deliveryPoints").value as? Number)?.toInt() ?: 0
+                val credits = (profile.child("purchaseCredits").value as? Number)?.toDouble() ?: 0.0
+
+                page.findViewById<TextView>(R.id.tvDeliveryPoints).text =
+                    "Delivery points: $points"
+
+                page.findViewById<TextView>(R.id.tvPurchaseCredits).text =
+                    "Purchase credits: $credits EGP"
+
                 val url = profile.child("photoUrl").value?.toString().orEmpty()
                 photo.setImageDrawable(null)
 
@@ -106,6 +119,7 @@ class BuyerProfileFragment : Fragment(R.layout.activity_profile) {
                     }
                     photo.setImageBitmap(bitmap)
                 }
+
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

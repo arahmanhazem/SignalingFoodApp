@@ -24,4 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "SignalingFoodApp"
 include(":app")
- 
+include(":delivery")

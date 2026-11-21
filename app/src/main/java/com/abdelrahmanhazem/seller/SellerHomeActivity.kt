@@ -23,6 +23,7 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.Query
 import com.google.firebase.database.ValueEventListener
+import com.abdelrahmanhazem.VoipCallActivity
 
 /**
  * Seller home (Milestone 3): bottom navigation with
@@ -98,22 +99,32 @@ class SellerHomeActivity : AppCompatActivity() {
             }
         )
 
-        // A tab tap moves the same pager. Profile opens its own activity.
+// A tab tap moves the same pager. Profile and VoIP open their own activities.
         bottomNav.setOnItemSelectedListener { item ->
-            if (item.itemId == R.id.nav_seller_profile) {
-                startActivity(
-                    Intent(this, SellerActivity::class.java)
-                        .putExtra(SellerActivity.EXTRA_SHOW_PROFILE, true)
-                )
-                false
-            } else {
-                val position = pageIds.indexOf(item.itemId)
-                if (position >= 0) {
-                    pager.setCurrentItem(position, true)
+            when (item.itemId) {
+                R.id.nav_call -> {
+                    startActivity(Intent(this, VoipCallActivity::class.java))
+                    false
                 }
-                position >= 0
+
+                R.id.nav_seller_profile -> {
+                    startActivity(
+                        Intent(this, SellerActivity::class.java)
+                            .putExtra(SellerActivity.EXTRA_SHOW_PROFILE, true)
+                    )
+                    false
+                }
+
+                else -> {
+                    val position = pageIds.indexOf(item.itemId)
+                    if (position >= 0) {
+                        pager.setCurrentItem(position, true)
+                    }
+                    position >= 0
+                }
             }
         }
+
 
         // Back from an edited product reveals the grid again.
         supportFragmentManager.addOnBackStackChangedListener {

@@ -17,4 +17,11 @@
         android:id="@+id/nav_seller_profile"
         android:icon="@drawable/ic_person"
         android:title="Profile" />
+
+    <!-- Opens the VoIP calling screen -->
+    <item
+        android:id="@+id/nav_call"
+        android:icon="@drawable/ic_call"
+        android:title="Call" />
+
 </menu>

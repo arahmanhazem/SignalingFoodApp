@@ -105,10 +105,19 @@ class BuyerHomeActivity : AppCompatActivity() {
             }
         })
 
+
         navigation.setOnItemSelectedListener { item ->
-            showPage(item.itemId)
-            true
+            if (item.itemId == R.id.nav_call) {
+                startActivity(
+                    Intent(this, VoipCallActivity::class.java)
+                )
+                false
+            } else {
+                showPage(item.itemId)
+                true
+            }
         }
+
     }
 
     fun showPage(menuId: Int) {

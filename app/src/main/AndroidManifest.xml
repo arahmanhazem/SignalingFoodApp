@@ -72,6 +72,12 @@
             android:name=".buyer.ShopActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+        <!-- MS4 VoIP calling screen for establishing calls between Buyer and Seller users -->
+        <activity
+            android:name=".VoipCallActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
     </application>
 
 </manifest>

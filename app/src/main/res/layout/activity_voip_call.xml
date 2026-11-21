@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:padding="24dp"
+    android:background="#FFFFFF">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="VoIP Calling"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="#183B65"
+        android:layout_marginTop="50dp"
+        android:layout_marginBottom="35dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Enter IP Address"
+        android:textSize="16sp"
+        android:textColor="#222222" />
+
+    <EditText
+        android:id="@+id/ipAddressInput"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:hint="e.g. 192.168.1.100"
+        android:inputType="text"
+        android:singleLine="true"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="20dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Port Number"
+        android:textSize="16sp"
+        android:textColor="#222222" />
+
+    <EditText
+        android:id="@+id/portInput"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:hint="e.g. 50005"
+        android:inputType="number"
+        android:maxLength="5"
+        android:singleLine="true"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="30dp" />
+
+    <Button
+        android:id="@+id/listenButton"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:text="Start Listening"
+        android:textSize="16sp"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/callButton"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:text="Start Call"
+        android:textSize="16sp" />
+
+    <Button
+        android:id="@+id/endCallButton"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:text="End Call"
+        android:layout_marginTop="12dp"
+        android:enabled="false" />
+
+    <TextView
+        android:id="@+id/callStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Not connected"
+        android:textSize="16sp"
+        android:gravity="center"
+        android:textColor="#555555"
+        android:layout_marginTop="25dp" />
+
+</LinearLayout>
+
+

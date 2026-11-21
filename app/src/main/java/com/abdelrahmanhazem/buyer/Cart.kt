@@ -120,7 +120,10 @@ object Cart {
         method: String,
         address: String,
         deliveryZone: String,
-        deliveryFee: Double
+        deliveryFee: Double,
+        creditsToUse: Double = 0.0,
+// DELIVERY APP BONUS: Points selected by the buyer for this purchase
+        pointsToUse: Int = 0
     ): Task<Void> {
         if (state.items.isEmpty()) {
             return Tasks.forException(
@@ -131,6 +134,17 @@ object Cart {
         if (state.items.any { it.qty <= 0 }) {
             return Tasks.forException(
                 IllegalStateException("Your cart contains an invalid quantity.")
+            )
+        }
+
+        // DELIVERY APP BONUS: Validate rewards used for this purchase.
+        val orderTotal = state.total + deliveryFee
+        val pointsDiscount = pointsToUse / 10.0
+        val totalDiscount = creditsToUse + pointsDiscount
+
+        if (creditsToUse < 0 || pointsToUse < 0 || totalDiscount > orderTotal) {
+            return Tasks.forException(
+                IllegalArgumentException("Invalid rewards amount.")
             )
         }
 
@@ -157,7 +171,12 @@ object Cart {
             "deliveryZone" to deliveryZone,
             "deliveryFee" to deliveryFee,
             "subtotal" to state.total,
-            "total" to state.total + deliveryFee,
+            "totalBeforeCredits" to orderTotal,
+            // DELIVERY APP BONUS: Save the rewards used for this order.
+            "creditsUsed" to creditsToUse,
+            "deliveryPointsUsed" to pointsToUse,
+            "pointsDiscount" to pointsDiscount,
+            "total" to orderTotal - totalDiscount,
             "status" to FIRST_ORDER_STATUS,
             "createdAt" to ServerValue.TIMESTAMP
         )
@@ -173,6 +192,20 @@ object Cart {
             updates[stockPath] = ServerValue.increment(-item.qty.toLong())
         }
 
+        // DELIVERY APP BONUS: Deduct rewards as part of the same order submission.
+        if (creditsToUse > 0) {
+            updates["users/$buyerId/purchaseCredits"] =
+                ServerValue.increment(-creditsToUse)
+        }
+
+// DELIVERY APP BONUS: Deduct delivery points used for this purchase.
+        if (pointsToUse > 0) {
+            updates["users/$buyerId/deliveryPoints"] =
+                ServerValue.increment(-pointsToUse.toLong())
+        }
+
         return db.updateChildren(updates)
+
     }
 }
+
