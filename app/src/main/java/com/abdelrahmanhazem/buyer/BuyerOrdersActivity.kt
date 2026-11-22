@@ -1,5 +1,10 @@
 package com.abdelrahmanhazem.buyer
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
@@ -7,10 +12,14 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.abdelrahmanhazem.R
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -33,8 +42,16 @@ class BuyerOrdersActivity : AppCompatActivity() {
 /** The same live orders list works as a pager page or a standalone screen. */
 class BuyerOrdersFragment : Fragment(R.layout.activity_buyer_orders) {
 
+    companion object {
+        private const val CHANNEL_STATUS = "buyer_order_status"
+    }
+
     private var query: Query? = null
     private var listener: ValueEventListener? = null
+
+    /** orderId → last known status (used to detect seller/delivery updates). */
+    private val knownStatuses = mutableMapOf<String, String>()
+    private var primed = false
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -44,6 +61,8 @@ class BuyerOrdersFragment : Fragment(R.layout.activity_buyer_orders) {
             requireActivity().finish()
             return
         }
+
+        createStatusChannel()
 
         val list = view.findViewById<RecyclerView>(R.id.rvBuyerOrders)
         val progress = view.findViewById<ProgressBar>(R.id.progressBuyerOrders)
@@ -70,6 +89,20 @@ class BuyerOrdersFragment : Fragment(R.layout.activity_buyer_orders) {
                     .filter { it.id.isNotBlank() }
                     .sortedByDescending { it.createdAt }
 
+                if (!primed) {
+                    knownStatuses.clear()
+                    orders.forEach { knownStatuses[it.id] = it.status }
+                    primed = true
+                } else {
+                    for (order in orders) {
+                        val previous = knownStatuses[order.id]
+                        if (previous != null && previous != order.status) {
+                            notifyStatusChange(order)
+                        }
+                        knownStatuses[order.id] = order.status
+                    }
+                }
+
                 adapter.submit(orders)
                 progress.visibility = View.GONE
                 empty.visibility = if (orders.isEmpty()) View.VISIBLE else View.GONE
@@ -95,6 +128,50 @@ class BuyerOrdersFragment : Fragment(R.layout.activity_buyer_orders) {
         query = orderRef
         listener = updates
         orderRef.addValueEventListener(updates)
+    }
+
+    /** Alert dialog + system notification when the seller/delivery updates status. */
+    private fun notifyStatusChange(order: Order) {
+        val ctx = context ?: return
+        val title = "Order update · ${order.shopName}"
+        val body = "${order.itemSummary}\nStatus: ${order.status}"
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(title)
+            .setMessage(body)
+            .setPositiveButton("OK", null)
+            .show()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val notification = NotificationCompat.Builder(ctx, CHANNEL_STATUS)
+            .setSmallIcon(R.drawable.ic_receipt)
+            .setContentTitle(title)
+            .setContentText(order.status)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(ctx)
+            .notify("buyer_status_${order.id}", order.id.hashCode(), notification)
+    }
+
+    private fun createStatusChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val ctx = context ?: return
+        val manager = ctx.getSystemService(NotificationManager::class.java) ?: return
+        val channel = NotificationChannel(
+            CHANNEL_STATUS,
+            "Order status updates",
+            NotificationManager.IMPORTANCE_DEFAULT
+        )
+        channel.description = "Alerts when your order status changes"
+        manager.createNotificationChannel(channel)
     }
 
     override fun onDestroyView() {

@@ -8,6 +8,10 @@ import com.google.firebase.database.DataSnapshot
  *   orders/{orderId}
  *     buyerId, sellerId, shopName, total, status, createdAt
  *     items/{productId}: name, price, qty, imageUrl
+ *
+ * Status flow (Milestone 4):
+ * Waiting for Seller Approval → Preparing → Ready for Pickup / Delivering → Delivered
+ * (or Declined)
  */
 data class Order(
     val id: String,
@@ -22,8 +26,13 @@ data class Order(
     companion object {
         const val NODE = "orders"
         const val STATUS_WAITING = "Waiting for Seller Approval"
-        const val STATUS_APPROVED = "Approved"
+        const val PREPARING = "Preparing"
+        const val READY = "Ready for Pickup"
+        const val DELIVERING = "Delivering"
+        const val DELIVERED = "Delivered"
         const val STATUS_DECLINED = "Declined"
+        /** Older Milestone 3 value kept for backwards compatibility. */
+        const val STATUS_APPROVED = "Approved"
 
         fun from(snapshot: DataSnapshot): Order {
             fun text(key: String) = snapshot.child(key).getValue(String::class.java).orEmpty()

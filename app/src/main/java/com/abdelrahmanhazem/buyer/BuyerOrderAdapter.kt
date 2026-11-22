@@ -45,7 +45,8 @@ class BuyerOrderAdapter : RecyclerView.Adapter<BuyerOrderAdapter.Holder>() {
 
         holder.status.text = status
         when (status) {
-            Order.STATUS_APPROVED -> {
+            Order.PREPARING, Order.STATUS_APPROVED, Order.READY,
+            Order.DELIVERING, Order.DELIVERED -> {
                 holder.status.setBackgroundResource(R.drawable.bg_status_approved)
                 holder.status.setTextColor(ContextCompat.getColor(ctx, R.color.success))
             }

@@ -97,31 +97,69 @@ class MyDeliveriesActivity : AppCompatActivity() {
 
     private fun completeDelivery(delivery: MyDelivery) {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        if (delivery.status.equals("Delivered", ignoreCase = true)) return
 
-        // DELIVERY APP BONUS: Complete the order and award points in one atomic update.
-        val updates = hashMapOf<String, Any>(
-            "orders/${delivery.id}/status" to "Delivered",
-            "orders/${delivery.id}/deliveredAt" to ServerValue.TIMESTAMP,
-            "orders/${delivery.id}/deliveryPointsAwarded" to true,
-            "users/$userId/deliveryPoints" to ServerValue.increment(50)
-        )
+        val orderRef = database.child("orders").child(delivery.id)
 
-        // DELIVERY APP BONUS: Firebase rules ensure this delivery can only be rewarded once.
-        database.updateChildren(updates)
-            .addOnSuccessListener {
-                Toast.makeText(
-                    this@MyDeliveriesActivity,
-                    "Delivery completed! You earned 50 points.",
-                    Toast.LENGTH_LONG
-                ).show()
+        // Claim completion once: only the partner who accepted can finish, and only once.
+        orderRef.runTransaction(object : Transaction.Handler {
+            override fun doTransaction(currentData: MutableData): Transaction.Result {
+                if (currentData.value == null) return Transaction.success(currentData)
+
+                val partner = currentData.child("deliveryPartnerId")
+                    .getValue(String::class.java)
+                val status = currentData.child("status")
+                    .getValue(String::class.java).orEmpty()
+                val alreadyAwarded = currentData.child("deliveryPointsAwarded")
+                    .getValue(Boolean::class.java) == true
+
+                if (partner != userId || status.equals("Delivered", true) || alreadyAwarded) {
+                    return Transaction.abort()
+                }
+
+                currentData.child("status").value = "Delivered"
+                currentData.child("deliveredAt").value = ServerValue.TIMESTAMP
+                currentData.child("deliveryPointsAwarded").value = true
+                return Transaction.success(currentData)
             }
-            .addOnFailureListener { error ->
-                Toast.makeText(
-                    this@MyDeliveriesActivity,
-                    error.message ?: "Could not complete this delivery.",
-                    Toast.LENGTH_LONG
-                ).show()
+
+            override fun onComplete(
+                error: DatabaseError?,
+                committed: Boolean,
+                currentData: DataSnapshot?
+            ) {
+                if (error != null) {
+                    Toast.makeText(
+                        this@MyDeliveriesActivity,
+                        "Could not complete: ${error.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return
+                }
+                if (!committed) {
+                    Toast.makeText(
+                        this@MyDeliveriesActivity,
+                        "This delivery was already completed.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return
+                }
+
+                // DELIVERY APP BONUS: 50 points (10 pts = 1 EGP) + EGP 5 store credits.
+                val reward = hashMapOf<String, Any>(
+                    "users/$userId/deliveryPoints" to ServerValue.increment(50),
+                    "users/$userId/purchaseCredits" to ServerValue.increment(5.0)
+                )
+                database.updateChildren(reward)
+                    .addOnSuccessListener {
+                        Toast.makeText(
+                            this@MyDeliveriesActivity,
+                            "Delivery completed! +50 points and EGP 5 credits.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
             }
+        })
     }
 
 }
