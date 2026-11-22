@@ -99,7 +99,7 @@ class VoipCallActivity : AppCompatActivity() {
 
     private fun hasMicPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
+                PackageManager.PERMISSION_GRANTED
 
     // Start listening for incoming calls on the port entered by the user.
     private fun startListening() {
@@ -183,16 +183,29 @@ class VoipCallActivity : AppCompatActivity() {
                         .setPositiveButton("Accept") { _, _ ->
                             activeSocket = client
                             incomingCallPending = false
-                            writer.println("ACCEPT")
+
                             callStatus.text = "Call connected — speaking"
                             callButton.isEnabled = false
                             endCallButton.isEnabled = true
-                            startAudio(client)
+
+                            // Network is not allowed on the main thread: in the background,
+                            // first send ACCEPT, then start streaming audio both ways.
+                            executor.execute {
+                                try {
+                                    writer.println("ACCEPT")
+                                    startAudio(client)
+                                } catch (_: Exception) {
+                                    runOnUiThread { callStatus.text = "Connection lost" }
+                                }
+                            }
                         }
                         .setNegativeButton("Reject") { _, _ ->
-                            writer.println("REJECT")
                             incomingCallPending = false
-                            client.close()
+                            // Send the answer and close the connection on a background thread
+                            executor.execute {
+                                writer.println("REJECT")
+                                try { client.close() } catch (_: Exception) {}
+                            }
                             callStatus.text = "Call rejected"
                         }
                         .setCancelable(false)
