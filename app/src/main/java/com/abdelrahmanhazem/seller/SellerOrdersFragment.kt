@@ -158,6 +158,11 @@ class SellerOrdersFragment : Fragment(R.layout.fragment_seller_orders) {
                 committed: Boolean,
                 snapshot: DataSnapshot?
             ) {
+                // If the seller declined, put the reserved stock back into inventory.
+                if (committed && target == Order.STATUS_DECLINED && snapshot != null) {
+                    restockOrderItems(snapshot)
+                }
+
                 val message = when {
                     error != null -> "Could not update order: ${error.message}"
                     committed && snapshot?.child("status")?.value == target ->
@@ -170,6 +175,21 @@ class SellerOrdersFragment : Fragment(R.layout.fragment_seller_orders) {
                 }
             }
         }, false)
+    }
+
+    /** Restore product quantities when an order is declined after stock was reserved. */
+    private fun restockOrderItems(snapshot: DataSnapshot) {
+        val updates = mutableMapOf<String, Any>()
+        for (item in snapshot.child("items").children) {
+            val productId = item.key ?: continue
+            val qty = (item.child("qty").value as? Number)?.toInt() ?: 0
+            if (qty > 0) {
+                updates["products/$productId/quantity"] =
+                    ServerValue.increment(qty.toLong())
+            }
+        }
+        if (updates.isEmpty()) return
+        FirebaseDatabase.getInstance().reference.updateChildren(updates)
     }
 
     private fun money(amount: Double): String =

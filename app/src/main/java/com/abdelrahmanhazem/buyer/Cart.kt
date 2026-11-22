@@ -1,11 +1,16 @@
 package com.abdelrahmanhazem.buyer
 
 import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.MutableData
 import com.google.firebase.database.ServerValue
+import com.google.firebase.database.Transaction
+import java.util.concurrent.atomic.AtomicInteger
 
 object Cart {
 
@@ -113,7 +118,11 @@ object Cart {
     fun clear(buyerId: String): Task<Void> =
         ref(buyerId).removeValue()
 
-    // Submit the order, deduct stock and clear the cart in one Firebase write.
+    /**
+     * Place order with server-side stock checks:
+     * each product uses a Firebase transaction that only decrements when stock >= qty.
+     * If any product fails, already-decremented items are restored and the order is aborted.
+     */
     fun placeOrder(
         buyerId: String,
         state: State,
@@ -122,7 +131,7 @@ object Cart {
         deliveryZone: String,
         deliveryFee: Double,
         creditsToUse: Double = 0.0,
-// DELIVERY APP BONUS: Points selected by the buyer for this purchase
+        // DELIVERY APP BONUS: Points selected by the buyer for this purchase
         pointsToUse: Int = 0
     ): Task<Void> {
         if (state.items.isEmpty()) {
@@ -137,7 +146,6 @@ object Cart {
             )
         }
 
-        // DELIVERY APP BONUS: Validate rewards used for this purchase.
         val orderTotal = state.total + deliveryFee
         val pointsDiscount = pointsToUse / 10.0
         val totalDiscount = creditsToUse + pointsDiscount
@@ -148,64 +156,161 @@ object Cart {
             )
         }
 
-        val orderId = requireNotNull(db.child("orders").push().key)
+        // Server-side: reserve stock with transactions before writing the order.
+        return decrementAllStock(state.items).continueWithTask { stockTask ->
+            if (!stockTask.isSuccessful) {
+                return@continueWithTask Tasks.forException(
+                    stockTask.exception
+                        ?: IllegalStateException("Could not reserve stock.")
+                )
+            }
 
-        val orderItems = state.items.associate { item ->
-            item.productId to mapOf(
-                "productId" to item.productId,
-                "name" to item.name,
-                "price" to item.price,
-                "qty" to item.qty,
-                "imageUrl" to item.imageUrl
+            val orderId = requireNotNull(db.child("orders").push().key)
+
+            val orderItems = state.items.associate { item ->
+                item.productId to mapOf(
+                    "productId" to item.productId,
+                    "name" to item.name,
+                    "price" to item.price,
+                    "qty" to item.qty,
+                    "imageUrl" to item.imageUrl
+                )
+            }
+
+            val order = mapOf(
+                "id" to orderId,
+                "buyerId" to buyerId,
+                "sellerId" to state.sellerId,
+                "shopName" to state.shopName,
+                "items" to orderItems,
+                "fulfillmentMethod" to method,
+                "deliveryAddress" to address,
+                "deliveryZone" to deliveryZone,
+                "deliveryFee" to deliveryFee,
+                "subtotal" to state.total,
+                "totalBeforeCredits" to orderTotal,
+                "creditsUsed" to creditsToUse,
+                "deliveryPointsUsed" to pointsToUse,
+                "pointsDiscount" to pointsDiscount,
+                "total" to orderTotal - totalDiscount,
+                "status" to FIRST_ORDER_STATUS,
+                "createdAt" to ServerValue.TIMESTAMP
             )
+
+            val updates = mutableMapOf<String, Any?>(
+                "orders/$orderId" to order,
+                "checkoutIds/$buyerId" to orderId,
+                "carts/$buyerId" to null
+            )
+
+            if (creditsToUse > 0) {
+                updates["users/$buyerId/purchaseCredits"] =
+                    ServerValue.increment(-creditsToUse)
+            }
+
+            if (pointsToUse > 0) {
+                updates["users/$buyerId/deliveryPoints"] =
+                    ServerValue.increment(-pointsToUse.toLong())
+            }
+
+            db.updateChildren(updates).addOnFailureListener {
+                // Order write failed after stock was reserved — put stock back.
+                restoreStock(state.items)
+            }
+        }
+    }
+
+    /** Decrement every cart line with a stock transaction. Restore all if any line fails. */
+    private fun decrementAllStock(items: List<Item>): Task<Void> {
+        if (items.isEmpty()) return Tasks.forResult(null)
+
+        val remaining = AtomicInteger(items.size)
+        val tcs = TaskCompletionSource<Void>()
+        val reserved = mutableListOf<Item>()
+        val lock = Any()
+        var failed = false
+
+        fun fail(error: Exception) {
+            synchronized(lock) {
+                if (failed) return
+                failed = true
+                val copy = reserved.toList()
+                restoreStock(copy)
+                tcs.trySetException(error)
+            }
         }
 
-        val order = mapOf(
-            "id" to orderId,
-            "buyerId" to buyerId,
-            "sellerId" to state.sellerId,
-            "shopName" to state.shopName,
-            "items" to orderItems,
-            "fulfillmentMethod" to method,
-            "deliveryAddress" to address,
-            "deliveryZone" to deliveryZone,
-            "deliveryFee" to deliveryFee,
-            "subtotal" to state.total,
-            "totalBeforeCredits" to orderTotal,
-            // DELIVERY APP BONUS: Save the rewards used for this order.
-            "creditsUsed" to creditsToUse,
-            "deliveryPointsUsed" to pointsToUse,
-            "pointsDiscount" to pointsDiscount,
-            "total" to orderTotal - totalDiscount,
-            "status" to FIRST_ORDER_STATUS,
-            "createdAt" to ServerValue.TIMESTAMP
-        )
-
-        val updates = mutableMapOf<String, Any?>(
-            "orders/$orderId" to order,
-            "checkoutIds/$buyerId" to orderId,
-            "carts/$buyerId" to null
-        )
-
-        for (item in state.items) {
-            val stockPath = "products/${item.productId}/quantity"
-            updates[stockPath] = ServerValue.increment(-item.qty.toLong())
+        fun succeedOne(item: Item) {
+            synchronized(lock) {
+                if (failed) {
+                    // Another item already failed — undo this one too.
+                    restoreStock(listOf(item))
+                    return
+                }
+                reserved.add(item)
+                if (remaining.decrementAndGet() == 0) {
+                    tcs.trySetResult(null)
+                }
+            }
         }
 
-        // DELIVERY APP BONUS: Deduct rewards as part of the same order submission.
-        if (creditsToUse > 0) {
-            updates["users/$buyerId/purchaseCredits"] =
-                ServerValue.increment(-creditsToUse)
+        for (item in items) {
+            decrementOne(item.productId, item.qty)
+                .addOnSuccessListener { ok ->
+                    if (ok) succeedOne(item)
+                    else fail(
+                        IllegalStateException(
+                            "Not enough stock for \"${item.name}\"."
+                        )
+                    )
+                }
+                .addOnFailureListener { fail(it as? Exception ?: Exception(it)) }
         }
 
-// DELIVERY APP BONUS: Deduct delivery points used for this purchase.
-        if (pointsToUse > 0) {
-            updates["users/$buyerId/deliveryPoints"] =
-                ServerValue.increment(-pointsToUse.toLong())
+        return tcs.task
+    }
+
+    /** Server-side: only decrements if current quantity >= qty. */
+    private fun decrementOne(productId: String, qty: Int): Task<Boolean> {
+        val tcs = TaskCompletionSource<Boolean>()
+        db.child("products").child(productId)
+            .runTransaction(object : Transaction.Handler {
+                override fun doTransaction(data: MutableData): Transaction.Result {
+                    // First pass may have no local data — succeed unchanged so Firebase retries.
+                    if (data.value == null) return Transaction.success(data)
+
+                    val current = when (val v = data.child("quantity").value) {
+                        is Number -> v.toInt()
+                        is String -> v.toIntOrNull() ?: 0
+                        else -> 0
+                    }
+                    if (current < qty) return Transaction.abort()
+
+                    data.child("quantity").value = current - qty
+                    data.child("updatedAt").value = ServerValue.TIMESTAMP
+                    return Transaction.success(data)
+                }
+
+                override fun onComplete(
+                    error: DatabaseError?,
+                    committed: Boolean,
+                    currentData: DataSnapshot?
+                ) {
+                    if (error != null) tcs.setException(error.toException())
+                    else tcs.setResult(committed)
+                }
+            }, false)
+        return tcs.task
+    }
+
+    /** Put reserved stock back (used when order write fails or a later item fails). */
+    private fun restoreStock(items: List<Item>) {
+        if (items.isEmpty()) return
+        val updates = mutableMapOf<String, Any>()
+        for (item in items) {
+            updates["products/${item.productId}/quantity"] =
+                ServerValue.increment(item.qty.toLong())
         }
-
-        return db.updateChildren(updates)
-
+        db.updateChildren(updates)
     }
 }
-
